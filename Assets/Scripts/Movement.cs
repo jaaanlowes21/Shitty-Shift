@@ -43,6 +43,11 @@ public class PlayerMovement : MonoBehaviour
     public GameObject fpsCamera;
     public GameObject tpsCamera;
 
+    [Header("Interaction")]
+    public float interactDistance = 3f;
+    public LayerMask interactMask = ~0;
+    public Transform interactSource;
+
     [Header("HP")]
     public float maxHP = 100f;
 
@@ -127,6 +132,9 @@ public class PlayerMovement : MonoBehaviour
         controller.height = standingHeight;
         controller.center = Vector3.zero;
 
+        if (interactSource == null)
+            interactSource = cameraPivot != null ? cameraPivot : transform;
+
         if (staminaVignette != null)
         {
             Color c = staminaVignette.color;
@@ -137,6 +145,7 @@ public class PlayerMovement : MonoBehaviour
 
     void Update()
     {
+        DetectInteractable();
         HandleInteraction();
         HandleGroundCheck();
         HandleMouseLook();
@@ -158,6 +167,31 @@ public class PlayerMovement : MonoBehaviour
         UpdateInteractionUI();
         UpdateStatsUI();
         UpdateStaminaVignette();
+    }
+
+    void DetectInteractable()
+    {
+        currentInteractable = null;
+
+        if (isHidden)
+            return;
+
+        Transform source = interactSource != null ? interactSource : transform;
+        Ray ray = new Ray(source.position, source.forward);
+
+        if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, interactMask, QueryTriggerInteraction.Collide))
+        {
+            MonoBehaviour[] behaviours = hit.collider.GetComponentsInParent<MonoBehaviour>();
+
+            foreach (MonoBehaviour behaviour in behaviours)
+            {
+                if (behaviour is IInteractable interactable)
+                {
+                    currentInteractable = interactable;
+                    break;
+                }
+            }
+        }
     }
 
     void HandleInteraction()
@@ -391,36 +425,6 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-    private void OnTriggerEnter(Collider other)
-    {
-        MonoBehaviour[] behaviours = other.GetComponentsInParent<MonoBehaviour>();
-
-        foreach (MonoBehaviour behaviour in behaviours)
-        {
-            if (behaviour is IInteractable interactable)
-            {
-                currentInteractable = interactable;
-                break;
-            }
-        }
-    }
-
-    private void OnTriggerExit(Collider other)
-    {
-        MonoBehaviour[] behaviours = other.GetComponentsInParent<MonoBehaviour>();
-
-        foreach (MonoBehaviour behaviour in behaviours)
-        {
-            if (behaviour is IInteractable interactable)
-            {
-                if (currentInteractable == interactable)
-                    currentInteractable = null;
-
-                break;
-            }
-        }
-    }
-
     void UpdateInteractionUI()
     {
         if (interactionText == null) return;
@@ -497,5 +501,9 @@ public class PlayerMovement : MonoBehaviour
             Gizmos.color = Color.red;
             Gizmos.DrawWireSphere(groundCheck.position, groundDistance);
         }
+
+        Transform source = interactSource != null ? interactSource : transform;
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawRay(source.position, source.forward * interactDistance);
     }
 }
