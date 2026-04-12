@@ -72,6 +72,11 @@ public class PlayerMovement : MonoBehaviour
     private bool isFPS = true;
     private bool isHidden = false;
     private bool isReading = false;
+    private bool isLookLocked = false;
+    private float lookLockTimer = 0f;
+    private float lookLockDuration = 0f;
+    private Transform lookLockTarget;
+    private float lookShakeIntensity = 0f;
 
     private float xRotation = 0f;
 
@@ -151,7 +156,7 @@ public class PlayerMovement : MonoBehaviour
         HandleMouseLook();
         HandleStamina();
 
-        if (!isHidden && !isReading)
+        if (!isHidden && !isReading && !isLookLocked)
         {
             HandleMovement();
             HandleCrouch();
@@ -267,6 +272,12 @@ public class PlayerMovement : MonoBehaviour
     {
         if (isReading)
             return;
+
+        if (isLookLocked)
+        {
+            UpdateLookLock();
+            return;
+        }
 
         if (isHidden)
         {
@@ -423,6 +434,67 @@ public class PlayerMovement : MonoBehaviour
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
         }
+    }
+
+    public void StartJumpscare(Transform target, float duration, float shakeIntensity)
+    {
+        if (target == null)
+            return;
+
+        isLookLocked = true;
+        lookLockTimer = 0f;
+        lookLockDuration = duration;
+        lookLockTarget = target;
+        lookShakeIntensity = shakeIntensity;
+
+        currentMove = Vector3.zero;
+        moveInput = Vector2.zero;
+        isRunning = false;
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+    }
+
+    public void StopJumpscare()
+    {
+        isLookLocked = false;
+        lookLockTimer = 0f;
+        lookLockDuration = 0f;
+        lookLockTarget = null;
+        lookShakeIntensity = 0f;
+
+        if (cameraPivot != null)
+            cameraPivot.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
+    }
+
+    private void UpdateLookLock()
+    {
+        if (lookLockTarget != null && playerBody != null)
+        {
+            Vector3 direction = lookLockTarget.position - transform.position;
+            direction.y = 0f;
+            if (direction.sqrMagnitude > 0.0001f)
+                playerBody.rotation = Quaternion.LookRotation(direction);
+        }
+
+        if (cameraPivot != null)
+            cameraPivot.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
+
+        ApplyLookShake();
+
+        lookLockTimer += Time.deltaTime;
+        if (lookLockTimer >= lookLockDuration)
+            StopJumpscare();
+    }
+
+    private void ApplyLookShake()
+    {
+        if (cameraPivot == null || lookShakeIntensity <= 0f)
+            return;
+
+        float shakeX = (Random.value - 0.5f) * 2f * lookShakeIntensity;
+        float shakeZ = (Random.value - 0.5f) * 2f * lookShakeIntensity;
+        cameraPivot.localRotation = Quaternion.Euler(xRotation + shakeX, 0f, shakeZ);
     }
 
     void UpdateInteractionUI()
