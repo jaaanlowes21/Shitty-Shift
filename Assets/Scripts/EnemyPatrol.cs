@@ -25,6 +25,9 @@ public class EnemyPatrol : MonoBehaviour
     private bool movingRight;
 
     private PlayerMovement player;
+    private CharacterController playerController;
+    private Collider[] enemyColliders;
+    private bool isIgnoringPlayerCollision;
     private float chargeTimer;
     private bool isAttacking;
     private bool isOnCooldown;
@@ -49,6 +52,10 @@ public class EnemyPatrol : MonoBehaviour
 
         if (player == null)
             Debug.LogWarning("EnemyPatrol could not find a PlayerMovement in the scene.");
+        else
+            playerController = player.GetComponent<CharacterController>();
+
+        enemyColliders = GetComponentsInChildren<Collider>();
     }
 
     private void Update()
@@ -107,6 +114,16 @@ public class EnemyPatrol : MonoBehaviour
         savedPatrolRotation = transform.rotation;
         savedTargetPosition = targetPosition;
         savedMovingRight = movingRight;
+
+        if (!isIgnoringPlayerCollision && playerController != null && enemyColliders != null)
+        {
+            foreach (Collider col in enemyColliders)
+            {
+                if (col != null)
+                    Physics.IgnoreCollision(col, playerController, true);
+            }
+            isIgnoringPlayerCollision = true;
+        }
 
         RotateTowards(player.transform.position);
     }
@@ -186,6 +203,16 @@ public class EnemyPatrol : MonoBehaviour
         if (player != null)
             player.StopJumpscare();
 
+        if (isIgnoringPlayerCollision && playerController != null && enemyColliders != null)
+        {
+            foreach (Collider col in enemyColliders)
+            {
+                if (col != null)
+                    Physics.IgnoreCollision(col, playerController, false);
+            }
+            isIgnoringPlayerCollision = false;
+        }
+
         isJumpscaring = false;
         isReturningToPatrol = true;
     }
@@ -227,6 +254,16 @@ public class EnemyPatrol : MonoBehaviour
 
     private void ResetAttackState()
     {
+        if (isIgnoringPlayerCollision && playerController != null && enemyColliders != null)
+        {
+            foreach (Collider col in enemyColliders)
+            {
+                if (col != null)
+                    Physics.IgnoreCollision(col, playerController, false);
+            }
+            isIgnoringPlayerCollision = false;
+        }
+
         isAttacking = false;
         isOnCooldown = false;
         isReturningToPatrol = false;

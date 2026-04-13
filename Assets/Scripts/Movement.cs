@@ -78,6 +78,11 @@ public class PlayerMovement : MonoBehaviour
     private Transform lookLockTarget;
     private float lookShakeIntensity = 0f;
 
+    private bool savedIsFPSBeforeJumpscare;
+    private bool restoreCameraAfterJumpscare = false;
+    private bool savedIsFPSBeforeHide;
+    private bool restoreCameraAfterHide = false;
+
     private float xRotation = 0f;
 
     private float currentStamina;
@@ -362,6 +367,9 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
 
+        savedIsFPSBeforeHide = isFPS;
+        restoreCameraAfterHide = true;
+
         isHidden = true;
         hiddenInside = hideable;
 
@@ -409,6 +417,14 @@ public class PlayerMovement : MonoBehaviour
         controller.enabled = true;
 
         hiddenInside = null;
+
+        if (restoreCameraAfterHide && fpsCamera != null && tpsCamera != null)
+        {
+            isFPS = savedIsFPSBeforeHide;
+            fpsCamera.SetActive(isFPS);
+            tpsCamera.SetActive(!isFPS);
+            restoreCameraAfterHide = false;
+        }
     }
 
     public HideableObject GetHiddenInside()
@@ -441,6 +457,16 @@ public class PlayerMovement : MonoBehaviour
         if (target == null)
             return;
 
+        savedIsFPSBeforeJumpscare = isFPS;
+        restoreCameraAfterJumpscare = true;
+
+        if (!isFPS)
+        {
+            isFPS = true;
+            if (fpsCamera != null) fpsCamera.SetActive(true);
+            if (tpsCamera != null) tpsCamera.SetActive(false);
+        }
+
         isLookLocked = true;
         lookLockTimer = 0f;
         lookLockDuration = duration;
@@ -462,6 +488,14 @@ public class PlayerMovement : MonoBehaviour
         lookLockDuration = 0f;
         lookLockTarget = null;
         lookShakeIntensity = 0f;
+
+        if (restoreCameraAfterJumpscare && fpsCamera != null && tpsCamera != null)
+        {
+            isFPS = savedIsFPSBeforeJumpscare;
+            fpsCamera.SetActive(isFPS);
+            tpsCamera.SetActive(!isFPS);
+            restoreCameraAfterJumpscare = false;
+        }
 
         if (cameraPivot != null)
             cameraPivot.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
