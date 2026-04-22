@@ -19,6 +19,7 @@ public class Door : InteractableBase
     private Vector3 openPosition;
     private bool isOpen;
     private bool isMoving;
+    public bool IsOpen => isOpen;
 
     private Coroutine moveCoroutine;
     private Coroutine autoCloseCoroutine;

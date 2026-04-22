@@ -4,9 +4,7 @@ public class EnemyPatrol : MonoBehaviour
 {
     [Header("Patrol Settings")]
     public float speed = 3f;
-    public float leftX = -180f;
-    public float rightX = -65f;
-    public bool startMovingRight = true;
+    public Transform[] patrolWaypoints;
 
     [Header("Attack Settings")]
     public float detectionRadius = 10f;
@@ -24,7 +22,7 @@ public class EnemyPatrol : MonoBehaviour
 
     private Vector3 targetPosition;
     private Vector3 attackTargetPosition;
-    private bool movingRight;
+    private int waypointIndex;
 
     private PlayerMovement player;
     private float chargeTimer;
@@ -39,11 +37,11 @@ public class EnemyPatrol : MonoBehaviour
     private Vector3 savedPatrolPosition;
     private Quaternion savedPatrolRotation;
     private Vector3 savedTargetPosition;
-    private bool savedMovingRight;
+    private int savedWaypointIndex;
 
     private void Start()
     {
-        movingRight = startMovingRight;
+        waypointIndex = 0;
         SetTargetPosition();
         RotateTowardsTarget();
 
@@ -111,7 +109,7 @@ public class EnemyPatrol : MonoBehaviour
         savedPatrolPosition = transform.position;
         savedPatrolRotation = transform.rotation;
         savedTargetPosition = targetPosition;
-        savedMovingRight = movingRight;
+        savedWaypointIndex = waypointIndex;
 
         if (player != null)
         {
@@ -235,8 +233,8 @@ public class EnemyPatrol : MonoBehaviour
             transform.position = returnPosition;
             transform.rotation = savedPatrolRotation;
             isReturningToPatrol = false;
+            waypointIndex = savedWaypointIndex;
             targetPosition = savedTargetPosition;
-            movingRight = savedMovingRight;
         }
     }
 
@@ -259,9 +257,9 @@ public class EnemyPatrol : MonoBehaviour
 
     private void UpdatePatrol()
     {
-        if (Mathf.Approximately(transform.position.x, targetPosition.x))
+        if (Vector3.Distance(transform.position, targetPosition) < 0.1f)
         {
-            movingRight = !movingRight;
+            waypointIndex = (waypointIndex + 1) % patrolWaypoints.Length;
             SetTargetPosition();
             RotateTowardsTarget();
         }
@@ -275,11 +273,10 @@ public class EnemyPatrol : MonoBehaviour
 
     private void SetTargetPosition()
     {
-        targetPosition = new Vector3(
-            movingRight ? rightX : leftX,
-            transform.position.y,
-            transform.position.z
-        );
+        if (patrolWaypoints == null || patrolWaypoints.Length == 0) return;
+        Transform point = patrolWaypoints[waypointIndex];
+        targetPosition = point != null ? point.position : transform.position;
+        targetPosition.y = transform.position.y;
     }
 
     private void RotateTowardsTarget()
@@ -304,5 +301,14 @@ public class EnemyPatrol : MonoBehaviour
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, detectionRadius);
+
+        if (patrolWaypoints == null || patrolWaypoints.Length < 2) return;
+        Gizmos.color = Color.cyan;
+        for (int i = 0; i < patrolWaypoints.Length; i++)
+        {
+            if (patrolWaypoints[i] == null) continue;
+            Gizmos.DrawSphere(patrolWaypoints[i].position, 0.2f);
+            Gizmos.DrawLine(patrolWaypoints[i].position, patrolWaypoints[(i + 1) % patrolWaypoints.Length].position);
+        }
     }
 }
