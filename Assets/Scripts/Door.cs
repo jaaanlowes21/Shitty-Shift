@@ -3,10 +3,9 @@ using UnityEngine;
 
 public class Door : InteractableBase
 {
-    [Header("Door Settings")]
-    public float openDistance = 2f;
-    public float slideSpeed = 3f;
-    public bool useLocalSpace = true;
+    [Header("Door Rotation")]
+    public float openAngle = 90f;
+    public float rotateSpeed = 3f;
     public bool startOpen = false;
 
     [Header("Closed Door")]
@@ -16,46 +15,31 @@ public class Door : InteractableBase
     public bool autoClose = true;
     public float autoCloseDelay = 3f;
 
-    private const float PositionTolerance = 0.001f;
+    private const float RotationTolerance = 0.1f;
 
-    private Vector3 closedPosition;
-    private Vector3 openPosition;
+    private Quaternion closedRotation;
+    private Quaternion openRotation;
+
     private bool isOpen;
     private bool isMoving;
+
     public bool IsOpen => isOpen;
 
-    private Coroutine moveCoroutine;
+    private Coroutine rotateCoroutine;
     private Coroutine autoCloseCoroutine;
 
     private void Awake()
     {
-        if (useLocalSpace)
-        {
-            closedPosition = transform.localPosition;
-            openPosition = closedPosition + Vector3.right * openDistance;
-        }
-        else
-        {
-            closedPosition = transform.position;
-            openPosition = closedPosition + transform.right * openDistance;
-        }
+        closedRotation = transform.localRotation;
+        openRotation = Quaternion.Euler(
+            closedRotation.eulerAngles.x,
+            closedRotation.eulerAngles.y + openAngle,
+            closedRotation.eulerAngles.z
+        );
 
         isOpen = startOpen;
 
-        if (isOpen)
-        {
-            if (useLocalSpace)
-                transform.localPosition = openPosition;
-            else
-                transform.position = openPosition;
-        }
-        else
-        {
-            if (useLocalSpace)
-                transform.localPosition = closedPosition;
-            else
-                transform.position = closedPosition;
-        }
+        transform.localRotation = isOpen ? openRotation : closedRotation;
     }
 
     private void Reset()
@@ -65,8 +49,8 @@ public class Door : InteractableBase
 
     private void OnDisable()
     {
-        if (moveCoroutine != null)
-            StopCoroutine(moveCoroutine);
+        if (rotateCoroutine != null)
+            StopCoroutine(rotateCoroutine);
 
         if (autoCloseCoroutine != null)
             StopCoroutine(autoCloseCoroutine);
@@ -91,51 +75,37 @@ public class Door : InteractableBase
             return;
         }
 
-        if (moveCoroutine != null)
-            StopCoroutine(moveCoroutine);
+        if (rotateCoroutine != null)
+            StopCoroutine(rotateCoroutine);
 
         if (autoCloseCoroutine != null)
             StopCoroutine(autoCloseCoroutine);
 
         isOpen = !isOpen;
 
-        Vector3 targetPosition = isOpen ? openPosition : closedPosition;
-        moveCoroutine = StartCoroutine(SlideDoor(targetPosition));
+        Quaternion targetRotation = isOpen ? openRotation : closedRotation;
+        rotateCoroutine = StartCoroutine(RotateDoor(targetRotation));
 
         if (isOpen && autoClose)
             autoCloseCoroutine = StartCoroutine(AutoCloseAfterDelay());
     }
 
-    private IEnumerator SlideDoor(Vector3 targetPosition)
+    private IEnumerator RotateDoor(Quaternion targetRotation)
     {
         isMoving = true;
 
-        while (true)
+        while (Quaternion.Angle(transform.localRotation, targetRotation) > RotationTolerance)
         {
-            Vector3 currentPosition = useLocalSpace ? transform.localPosition : transform.position;
-
-            currentPosition = Vector3.MoveTowards(
-                currentPosition,
-                targetPosition,
-                slideSpeed * Time.deltaTime
+            transform.localRotation = Quaternion.RotateTowards(
+                transform.localRotation,
+                targetRotation,
+                rotateSpeed * 100f * Time.deltaTime
             );
-
-            if (useLocalSpace)
-                transform.localPosition = currentPosition;
-            else
-                transform.position = currentPosition;
-
-            if (Vector3.Distance(currentPosition, targetPosition) < PositionTolerance)
-                break;
 
             yield return null;
         }
 
-        if (useLocalSpace)
-            transform.localPosition = targetPosition;
-        else
-            transform.position = targetPosition;
-
+        transform.localRotation = targetRotation;
         isMoving = false;
     }
 
@@ -147,6 +117,6 @@ public class Door : InteractableBase
             yield break;
 
         isOpen = false;
-        moveCoroutine = StartCoroutine(SlideDoor(closedPosition));
+        rotateCoroutine = StartCoroutine(RotateDoor(closedRotation));
     }
 }
