@@ -129,6 +129,8 @@ public class BossEnemyPatrol : MonoBehaviour
             return;
         }
 
+        AudioManager.Instance?.PlayMonsterAttackSound("Boss");
+
         currentState = EnemyState.Attack;
         attackTimer = 0f;
         chargeTimer = 0f;

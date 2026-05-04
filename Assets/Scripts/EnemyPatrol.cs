@@ -60,6 +60,9 @@ public class MopPatrol : MonoBehaviour
     public float enemyShakeAmount = 0.1f;
     public float attackOffset = 0f;
 
+    [Header("After Attack")]
+    public float ignorePlayerAfterAttackTime = 5f;
+
     private PlayerMovement player;
 
     private EnemyState currentState;
@@ -72,12 +75,14 @@ public class MopPatrol : MonoBehaviour
     private bool isOnCooldown;
     private bool hasSeenPlayerOnce;
     private bool hasShownDetectionHint;
+    private bool returningAfterAttack;
 
     private float chargeTimer;
     private float attackTimer;
     private float cooldownTimer;
     private float jumpscareTimer;
     private float lookoutTimer;
+    private float ignorePlayerTimer;
 
     private int patrolEndCount = 0;
     private int patrolEndsBeforeLookout = 3;
@@ -104,6 +109,8 @@ public class MopPatrol : MonoBehaviour
 
         hasSeenPlayerOnce = false;
         hasShownDetectionHint = false;
+        returningAfterAttack = false;
+
         EnterLookoutMode();
     }
 
@@ -114,6 +121,9 @@ public class MopPatrol : MonoBehaviour
 
         if (isOnCooldown)
             UpdateCooldown();
+
+        if (ignorePlayerTimer > 0f)
+            ignorePlayerTimer -= Time.deltaTime;
 
         switch (currentState)
         {
@@ -147,6 +157,9 @@ public class MopPatrol : MonoBehaviour
     {
         currentState = EnemyState.Lookout;
         lookoutTimer = Random.Range(lookoutMinDuration, lookoutMaxDuration);
+        chargeTimer = 0f;
+
+        AudioManager.Instance?.PlayLookoutSound();
 
         if (patrolPauseCoroutine != null)
         {
@@ -157,7 +170,14 @@ public class MopPatrol : MonoBehaviour
 
     private void EnterPatrolMode()
     {
+        if (ignorePlayerTimer > 0f)
+        {
+            EnterLookoutMode();
+            return;
+        }
+
         currentState = EnemyState.Patrol;
+        chargeTimer = 0f;
 
         if (patrolPauseCoroutine != null)
         {
@@ -171,6 +191,9 @@ public class MopPatrol : MonoBehaviour
 
     private void EnterChaseMode(EnemyState startedFrom)
     {
+        if (ignorePlayerTimer > 0f)
+            return;
+
         if (player == null || player.IsHidden)
             return;
 
@@ -186,34 +209,31 @@ public class MopPatrol : MonoBehaviour
     }
 
     private void EnterAttackMode()
+{
+    if (player == null)
     {
-        if (player == null)
-        {
-            StartReturnToPattern();
-            return;
-        }
-
-        currentState = EnemyState.Attack;
-        attackTimer = 0f;
-        chargeTimer = 0f;
-
-        savedPatternPosition = transform.position;
-        savedPatternRotation = transform.rotation;
-        savedTargetPosition = targetPosition;
-        savedMovingRight = movingRight;
-
-        Vector3 forward = player.transform.forward;
-        forward.y = 0f;
-        forward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
-
-        attackTargetPosition = player.transform.position + forward * faceDistance;
-        attackTargetPosition.y = transform.position.y;
-
-        Vector3 directionFromPlayerToEnemy = (transform.position - player.transform.position).normalized;
-        attackTargetPosition += directionFromPlayerToEnemy * attackOffset;
-
-        RotateTowards(attackTargetPosition);
+        StartReturnToPattern();
+        return;
     }
+
+    AudioManager.Instance?.PlayMonsterAttackSound("Mop");
+
+    currentState = EnemyState.Attack;
+    attackTimer = 0f;
+    chargeTimer = 0f;
+
+    Vector3 forward = player.transform.forward;
+    forward.y = 0f;
+    forward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
+
+    attackTargetPosition = player.transform.position + forward * faceDistance;
+    attackTargetPosition.y = transform.position.y;
+
+    Vector3 directionFromPlayerToEnemy = (transform.position - player.transform.position).normalized;
+    attackTargetPosition += directionFromPlayerToEnemy * attackOffset;
+
+    RotateTowards(attackTargetPosition);
+}
 
     private void StartReturnToPattern()
     {
@@ -221,11 +241,15 @@ public class MopPatrol : MonoBehaviour
             player.StopJumpscare();
 
         currentState = EnemyState.ReturnToPattern;
+        chargeTimer = 0f;
     }
 
     private void UpdateLookout()
     {
         if (player == null)
+            return;
+
+        if (ignorePlayerTimer > 0f)
             return;
 
         if (!player.IsHidden && !IsPlayerInsideClassroom())
@@ -252,6 +276,7 @@ public class MopPatrol : MonoBehaviour
             return;
 
         lookoutTimer -= Time.deltaTime;
+
         if (lookoutTimer <= 0f)
         {
             patrolEndCount = 0;
@@ -262,6 +287,12 @@ public class MopPatrol : MonoBehaviour
 
     private void UpdatePatrol()
     {
+        if (ignorePlayerTimer > 0f)
+        {
+            EnterLookoutMode();
+            return;
+        }
+
         if (player != null && CanSeePlayer(patrolDetectionRadius))
         {
             EnterChaseMode(EnemyState.Patrol);
@@ -308,6 +339,12 @@ public class MopPatrol : MonoBehaviour
 
     private void UpdateChase()
     {
+        if (ignorePlayerTimer > 0f)
+        {
+            StartReturnToPattern();
+            return;
+        }
+
         if (player == null)
         {
             StartReturnToPattern();
@@ -417,6 +454,7 @@ public class MopPatrol : MonoBehaviour
         jumpscareTimer = jumpscareDuration;
         isOnCooldown = true;
         cooldownTimer = attackCooldown;
+        returningAfterAttack = true;
     }
 
     private void UpdateJumpscare()
@@ -472,6 +510,14 @@ public class MopPatrol : MonoBehaviour
             movingRight = savedMovingRight;
             chargeTimer = 0f;
 
+            if (returningAfterAttack)
+            {
+                returningAfterAttack = false;
+                ignorePlayerTimer = ignorePlayerAfterAttackTime;
+                EnterLookoutMode();
+                return;
+            }
+
             if (chaseStartedFromState == EnemyState.Lookout)
                 EnterLookoutMode();
             else
@@ -481,6 +527,7 @@ public class MopPatrol : MonoBehaviour
 
     private bool CanSeePlayer(float radius)
     {
+        if (ignorePlayerTimer > 0f) return false;
         if (player == null) return false;
         if (player.IsHidden) return false;
         if (IsPlayerInsideClassroom()) return false;
@@ -505,6 +552,7 @@ public class MopPatrol : MonoBehaviour
     private void UpdateCooldown()
     {
         cooldownTimer -= Time.deltaTime;
+
         if (cooldownTimer <= 0f)
         {
             cooldownTimer = 0f;
@@ -551,6 +599,7 @@ public class MopPatrol : MonoBehaviour
             return;
 
         Quaternion targetRotation = Quaternion.LookRotation(direction);
+
         transform.rotation = Quaternion.Slerp(
             transform.rotation,
             targetRotation,

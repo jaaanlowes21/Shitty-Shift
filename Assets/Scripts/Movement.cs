@@ -50,6 +50,8 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("HP")]
     public float maxHP = 100f;
+    [Header("HP Stages UI")]
+    public GameObject[] hpStageIndicators = new GameObject[5];
 
     [Header("UI")]
     public TextMeshProUGUI interactionText;
@@ -132,6 +134,8 @@ public class PlayerMovement : MonoBehaviour
     void Start()
     {
         controller = GetComponent<CharacterController>();
+
+        UpdateHPStageIndicators();
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
@@ -592,10 +596,12 @@ public class PlayerMovement : MonoBehaviour
         staminaVignette.color = c;
     }
 
-    public void TakeDamage(float amount)
+   public void TakeDamage(float amount)
     {
         currentHP -= amount;
         currentHP = Mathf.Max(currentHP, 0f);
+
+        UpdateHPStageIndicators();
 
         if (currentHP <= 0f)
             OnDeath();
@@ -605,7 +611,41 @@ public class PlayerMovement : MonoBehaviour
     {
         currentHP += amount;
         currentHP = Mathf.Min(currentHP, maxHP);
+
+        UpdateHPStageIndicators();
     }
+
+    void UpdateHPStageIndicators()
+{
+    if (hpStageIndicators == null || hpStageIndicators.Length == 0)
+        return;
+
+    float hpPercent = currentHP / maxHP;
+
+    int stage = 0;
+
+    if (hpPercent <= 0f)
+        stage = 5;
+    else if (hpPercent <= 0.2f)
+        stage = 4;
+    else if (hpPercent <= 0.4f)
+        stage = 3;
+    else if (hpPercent <= 0.6f)
+        stage = 2;
+    else if (hpPercent <= 0.8f)
+        stage = 1;
+    else
+        stage = 0;
+
+    // Turn ON all indicators up to current stage
+    for (int i = 0; i < hpStageIndicators.Length; i++)
+    {
+        if (hpStageIndicators[i] != null)
+        {
+            hpStageIndicators[i].SetActive(i < stage);
+        }
+    }
+}
 
     void OnDeath()
     {
