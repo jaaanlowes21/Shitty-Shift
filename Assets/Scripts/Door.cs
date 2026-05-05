@@ -27,12 +27,16 @@ public class Door : InteractableBase
     private bool isMoving;
 
     public bool IsOpen => isOpen;
+    public bool IsMoving => isMoving;
 
     private Coroutine rotateCoroutine;
     private Coroutine autoCloseCoroutine;
 
     private void Awake()
     {
+        Rigidbody rb = GetComponent<Rigidbody>();
+        if (rb != null) rb.isKinematic = true;
+
         closedRotation = transform.localRotation;
 
         Vector3 euler = closedRotation.eulerAngles;
@@ -113,6 +117,23 @@ public class Door : InteractableBase
     if (isOpen && autoClose)
         autoCloseCoroutine = StartCoroutine(AutoCloseAfterDelay());
 }
+
+    public void ForceOpen()
+    {
+        if (isOpen || isMoving) return;
+
+        if (rotateCoroutine != null)
+            StopCoroutine(rotateCoroutine);
+
+        if (autoCloseCoroutine != null)
+            StopCoroutine(autoCloseCoroutine);
+
+        isOpen = true;
+        rotateCoroutine = StartCoroutine(RotateDoor(openRotation));
+
+        if (autoClose)
+            autoCloseCoroutine = StartCoroutine(AutoCloseAfterDelay());
+    }
 
     private IEnumerator RotateDoor(Quaternion targetRotation)
     {

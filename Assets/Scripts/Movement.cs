@@ -4,6 +4,7 @@ using TMPro;
 using UnityEngine.UI;
 
 [RequireComponent(typeof(CharacterController))]
+[RequireComponent(typeof(AudioSource))]
 public class PlayerMovement : MonoBehaviour
 {
     [Header("Movement")]
@@ -33,6 +34,14 @@ public class PlayerMovement : MonoBehaviour
     public float standingHeight = 2f;
     public float crouchHeight = 1f;
     public float crouchTransitionSpeed = 10f;
+
+    [Header("Audio")]
+    public AudioClip[] walkSounds;
+    public AudioClip runSound;
+    public AudioClip jumpSound;
+    public AudioClip landSound;
+    public float walkStepInterval = 0.5f;
+    public float runStepInterval = 0.3f;
 
     [Header("Ground Check")]
     public Transform groundCheck;
@@ -65,6 +74,8 @@ public class PlayerMovement : MonoBehaviour
     public float vignetteFadeSpeed = 6f;
 
     private CharacterController controller;
+    private AudioSource audioSource;
+    private float footstepTimer = 0f;
     private Vector3 velocity;
     private Vector3 currentMove;
 
@@ -108,6 +119,7 @@ public class PlayerMovement : MonoBehaviour
     void Awake()
     {
         inputActions = new PlayerInputActions();
+        audioSource = GetComponent<AudioSource>();
         currentStamina = maxStamina;
         currentHP = maxHP;
     }
@@ -172,7 +184,9 @@ public class PlayerMovement : MonoBehaviour
         }
 
         HandleInteraction();
+        bool prevGrounded = isGrounded;
         HandleGroundCheck();
+        HandleLanding(prevGrounded);
         HandleMouseLook();
         HandleStamina();
 
@@ -188,6 +202,7 @@ public class PlayerMovement : MonoBehaviour
             isRunning = false;
         }
 
+        HandleFootstepAudio();
         DetectInteractable();
         HandleGravity();
         UpdateInteractionUI();
@@ -305,7 +320,51 @@ public class PlayerMovement : MonoBehaviour
         if (isHidden || isReading) return;
 
         if (isGrounded && !isCrouching)
+        {
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            PlaySound(jumpSound);
+        }
+    }
+
+    void HandleLanding(bool prevGrounded)
+    {
+        if (!prevGrounded && isGrounded)
+            PlaySound(landSound);
+    }
+
+    void HandleFootstepAudio()
+    {
+        bool isMoving = moveInput.sqrMagnitude > 0.01f;
+
+        if (!isGrounded || !isMoving || isHidden || isReading || isCrouching)
+        {
+            footstepTimer = 0f;
+            return;
+        }
+
+        footstepTimer -= Time.deltaTime;
+
+        if (footstepTimer <= 0f)
+        {
+            if (isRunning)
+                PlaySound(runSound);
+            else
+                PlayRandomWalkSound();
+
+            footstepTimer = isRunning ? runStepInterval : walkStepInterval;
+        }
+    }
+
+    void PlayRandomWalkSound()
+    {
+        if (walkSounds == null || walkSounds.Length == 0) return;
+        PlaySound(walkSounds[Random.Range(0, walkSounds.Length)]);
+    }
+
+    void PlaySound(AudioClip clip)
+    {
+        if (audioSource == null || clip == null) return;
+        audioSource.PlayOneShot(clip);
     }
 
     void HandleCrouch()

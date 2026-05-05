@@ -66,5 +66,5 @@
     "explorer.fileNesting.patterns": {
         "*.sln": "*.csproj"
     },
-    "dotnet.defaultSolution": "Shitty-Shift-Partner.sln"
+    "dotnet.defaultSolution": "Shitty-Shift.sln"
 }
