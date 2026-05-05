@@ -391,7 +391,16 @@ public class MopPatrol : MonoBehaviour
         SmoothRotateTowards(chaseTarget);
 
         if (distanceToPlayer <= activeAttackRadius && !isOnCooldown)
+    {
+        if (chaseStartedFromState == EnemyState.Lookout)
         {
+            // 🔥 INSTANT ATTACK (no delay)
+            EnterAttackMode();
+            return;
+        }
+        else
+        {
+            // normal patrol behavior (keep delay)
             chargeTimer += Time.deltaTime;
 
             if (chargeTimer >= chargeTime)
@@ -400,10 +409,11 @@ public class MopPatrol : MonoBehaviour
                 return;
             }
         }
-        else
-        {
-            chargeTimer = 0f;
-        }
+    }
+    else
+    {
+        chargeTimer = 0f;
+    }
     }
 
     private void UpdateAttack()

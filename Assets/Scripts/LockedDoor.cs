@@ -13,6 +13,7 @@ public class LockedKeyDoor : InteractableBase
     public string unlockedMessage = "Unlocked.";
 
     private bool unlocked = false;
+    public bool IsUnlocked => unlocked;
 
     private void Awake()
     {

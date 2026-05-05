@@ -171,7 +171,6 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
 
-        DetectInteractable();
         HandleInteraction();
         HandleGroundCheck();
         HandleMouseLook();
@@ -189,35 +188,11 @@ public class PlayerMovement : MonoBehaviour
             isRunning = false;
         }
 
+        DetectInteractable();
         HandleGravity();
         UpdateInteractionUI();
         UpdateStatsUI();
         UpdateStaminaVignette();
-    }
-
-    void DetectInteractable()
-    {
-        currentInteractable = null;
-
-        if (isHidden)
-            return;
-
-        Transform source = interactSource != null ? interactSource : transform;
-        Ray ray = new Ray(source.position, source.forward);
-
-        if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, interactMask, QueryTriggerInteraction.Collide))
-        {
-            MonoBehaviour[] behaviours = hit.collider.GetComponentsInParent<MonoBehaviour>();
-
-            foreach (MonoBehaviour behaviour in behaviours)
-            {
-                if (behaviour is IInteractable interactable)
-                {
-                    currentInteractable = interactable;
-                    break;
-                }
-            }
-        }
     }
 
     void HandleInteraction()
@@ -374,6 +349,38 @@ public class PlayerMovement : MonoBehaviour
         fpsCamera.SetActive(isFPS);
         tpsCamera.SetActive(!isFPS);
     }
+
+    void DetectInteractable()
+    {
+        currentInteractable = null;
+
+        if (isHidden)
+            return;
+
+        Collider[] hits = Physics.OverlapSphere(transform.position, interactDistance, interactMask);
+
+        float closestDistance = Mathf.Infinity;
+        currentInteractable = null;
+
+    foreach (Collider col in hits)
+    {
+        MonoBehaviour[] behaviours = col.GetComponentsInParent<MonoBehaviour>();
+
+        foreach (MonoBehaviour behaviour in behaviours)
+     {
+            if (behaviour is InteractableBase interactable)
+            {
+                float dist = Vector3.Distance(transform.position, behaviour.transform.position);
+
+                if (dist <= interactable.interactionRadius && dist < closestDistance)
+                {
+                    closestDistance = dist;
+                    currentInteractable = interactable;
+                }
+            }
+        }
+    }
+}
 
     public void EnterHide(HideableObject hideable)
     {

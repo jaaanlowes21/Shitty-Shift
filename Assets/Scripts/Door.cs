@@ -8,6 +8,9 @@ public class Door : InteractableBase
     public float rotateSpeed = 3f;
     public bool startOpen = false;
 
+    public enum RotationAxis { X, Y, Z }
+    public RotationAxis axis = RotationAxis.Z; 
+
     [Header("Closed Door")]
     public bool isClosedDoor = false;
 
@@ -31,11 +34,23 @@ public class Door : InteractableBase
     private void Awake()
     {
         closedRotation = transform.localRotation;
-        openRotation = Quaternion.Euler(
-            closedRotation.eulerAngles.x,
-            closedRotation.eulerAngles.y + openAngle,
-            closedRotation.eulerAngles.z
-        );
+
+        Vector3 euler = closedRotation.eulerAngles;
+
+        switch (axis)
+        {
+            case RotationAxis.X:
+                euler.x += openAngle;
+                break;
+            case RotationAxis.Y:
+                euler.y += openAngle;
+                break;
+            case RotationAxis.Z:
+                euler.z += openAngle;
+                break;
+        }
+
+        openRotation = Quaternion.Euler(euler);
 
         isOpen = startOpen;
 
@@ -45,6 +60,7 @@ public class Door : InteractableBase
     private void Reset()
     {
         interactionPrompt = "Press F to Open";
+        interactionRadius = 2.5f; // 🔥 works with your radius system
     }
 
     private void OnDisable()
@@ -65,30 +81,38 @@ public class Door : InteractableBase
     }
 
     public override void Interact(PlayerMovement player)
+{
+    LockedKeyDoor lockedDoor = GetComponent<LockedKeyDoor>();
+
+    if (lockedDoor != null && !lockedDoor.IsUnlocked)
     {
-        if (isMoving)
-            return;
-
-        if (isClosedDoor && !isOpen)
-        {
-            HintManager.Instance?.ShowHint("Weird, the doors are locked... I should try the other side");
-            return;
-        }
-
-        if (rotateCoroutine != null)
-            StopCoroutine(rotateCoroutine);
-
-        if (autoCloseCoroutine != null)
-            StopCoroutine(autoCloseCoroutine);
-
-        isOpen = !isOpen;
-
-        Quaternion targetRotation = isOpen ? openRotation : closedRotation;
-        rotateCoroutine = StartCoroutine(RotateDoor(targetRotation));
-
-        if (isOpen && autoClose)
-            autoCloseCoroutine = StartCoroutine(AutoCloseAfterDelay());
+        lockedDoor.Interact(player);
+        return;
     }
+
+    if (isMoving)
+        return;
+
+    if (isClosedDoor && !isOpen)
+    {
+        HintManager.Instance?.ShowHint("Weird, the doors are locked... I should try the other side");
+        return;
+    }
+
+    if (rotateCoroutine != null)
+        StopCoroutine(rotateCoroutine);
+
+    if (autoCloseCoroutine != null)
+        StopCoroutine(autoCloseCoroutine);
+
+    isOpen = !isOpen;
+
+    Quaternion targetRotation = isOpen ? openRotation : closedRotation;
+    rotateCoroutine = StartCoroutine(RotateDoor(targetRotation));
+
+    if (isOpen && autoClose)
+        autoCloseCoroutine = StartCoroutine(AutoCloseAfterDelay());
+}
 
     private IEnumerator RotateDoor(Quaternion targetRotation)
     {

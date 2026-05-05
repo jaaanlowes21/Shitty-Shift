@@ -1,26 +1,37 @@
 using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Collections;
+using UnityEngine.SceneManagement;
 using TMPro;
+using UnityEngine.UI;
 
-public class CombinationLockDoor : Door
+public class CombinationLockDoor : InteractableBase
 {
     [Header("Combination Lock")]
-    [Tooltip("Four digit combination to unlock the door.")]
     public string combination = "1234";
+
+    [Header("Scene To Load")]
+    public string sceneName = "GameScene";
 
     [Header("UI")]
     public GameObject combinationPanel;
     public TextMeshProUGUI[] digitDisplays = new TextMeshProUGUI[4];
     public TextMeshProUGUI statusText;
 
+    [Header("Fade Transition")]
+    public UnityEngine.UI.Image blackFadeImage;
+    public float fadeDuration = 5f;
+
     private const int CombinationLength = 4;
-    private static readonly Key[] digitKeys = new[]
+
+    private static readonly Key[] digitKeys =
     {
         Key.Digit0, Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4,
         Key.Digit5, Key.Digit6, Key.Digit7, Key.Digit8, Key.Digit9
     };
-    private static readonly Key[] numpadKeys = new[]
+
+    private static readonly Key[] numpadKeys =
     {
         Key.Numpad0, Key.Numpad1, Key.Numpad2, Key.Numpad3, Key.Numpad4,
         Key.Numpad5, Key.Numpad6, Key.Numpad7, Key.Numpad8, Key.Numpad9
@@ -29,8 +40,13 @@ public class CombinationLockDoor : Door
     private char[] enteredDigits = new char[CombinationLength] { '0', '0', '0', '0' };
     private int currentSlotIndex;
     private bool panelOpen;
-    private bool isUnlocked;
     private PlayerMovement currentPlayer;
+
+    private void Reset()
+    {
+        interactionPrompt = "Press F to Enter Code";
+        interactionRadius = 2.5f;
+    }
 
     private void OnValidate()
     {
@@ -48,7 +64,9 @@ public class CombinationLockDoor : Door
     private void Start()
     {
         ResetEnteredDigits();
-        HidePanel();
+
+        if (combinationPanel != null)
+            combinationPanel.SetActive(false);
     }
 
     private void Update()
@@ -61,30 +79,15 @@ public class CombinationLockDoor : Door
 
     public override string GetInteractionPrompt()
     {
-        if (panelOpen)
-            return "Press F to Close";
-
-        if (isUnlocked)
-            return base.GetInteractionPrompt();
-
-        return "Press F to Enter Code";
+        return panelOpen ? "Press F to Close" : "Press F to Enter Code";
     }
 
     public override void Interact(PlayerMovement player)
     {
-        if (isUnlocked)
-        {
-            base.Interact(player);
-            return;
-        }
-
         if (panelOpen)
-        {
             ClosePanel();
-            return;
-        }
-
-        OpenPanel(player);
+        else
+            OpenPanel(player);
     }
 
     private void ReadDigitInput()
@@ -106,13 +109,8 @@ public class CombinationLockDoor : Door
         }
         else if (Keyboard.current.backspaceKey.wasPressedThisFrame)
         {
-            if (currentSlotIndex > 0)
-            {
-                currentSlotIndex--;
-                enteredDigits[currentSlotIndex] = '0';
-                UpdateDigitDisplays();
-                UpdateStatusText("Backspace");
-            }
+            Backspace();
+            UpdateStatusText("Backspace");
         }
         else if (Keyboard.current.escapeKey.wasPressedThisFrame)
         {
@@ -129,7 +127,8 @@ public class CombinationLockDoor : Door
 
         for (int i = 0; i < digitKeys.Length; i++)
         {
-            if (Keyboard.current[digitKeys[i]].wasPressedThisFrame || Keyboard.current[numpadKeys[i]].wasPressedThisFrame)
+            if (Keyboard.current[digitKeys[i]].wasPressedThisFrame ||
+                Keyboard.current[numpadKeys[i]].wasPressedThisFrame)
             {
                 digit = (char)('0' + i);
                 return true;
@@ -142,21 +141,56 @@ public class CombinationLockDoor : Door
     private void ValidateCombination()
     {
         string entered = new string(enteredDigits);
-        PlayerMovement player = currentPlayer;
 
         if (entered == combination)
         {
-            isUnlocked = true;
             UpdateStatusText("Unlocked!");
             ClosePanel();
-            base.Interact(player);
+            StartCoroutine(LoadSceneWithFade());
+            return;
         }
-        else
+
+        UpdateStatusText("Wrong code. Try again.");
+        ResetEnteredDigits();
+        UpdateDigitDisplays();
+    }
+
+    public void InputNumber(string number)
+    {
+        if (string.IsNullOrEmpty(number) || !char.IsDigit(number[0]))
+            return;
+
+        if (currentSlotIndex < enteredDigits.Length)
         {
-            UpdateStatusText("Wrong code. Try again.");
-            ResetEnteredDigits();
+            enteredDigits[currentSlotIndex] = number[0];
+            currentSlotIndex++;
+            UpdateDigitDisplays();
+
+            if (currentSlotIndex >= enteredDigits.Length)
+                ValidateCombination();
+        }
+    }
+
+    public void Backspace()
+    {
+        if (currentSlotIndex > 0)
+        {
+            currentSlotIndex--;
+            enteredDigits[currentSlotIndex] = '0';
             UpdateDigitDisplays();
         }
+    }
+
+    public void ClearInput()
+    {
+        ResetEnteredDigits();
+        UpdateDigitDisplays();
+        UpdateStatusText("");
+    }
+
+    public void SubmitCode()
+    {
+        ValidateCombination();
     }
 
     private void OpenPanel(PlayerMovement player)
@@ -169,10 +203,13 @@ public class CombinationLockDoor : Door
 
         ResetEnteredDigits();
         UpdateDigitDisplays();
-        UpdateStatusText("Enter 4 digits. Backspace to delete.");
+        UpdateStatusText("Enter 4 digits.");
 
         if (currentPlayer != null)
             currentPlayer.SetReadingState(true);
+
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
     }
 
     private void ClosePanel()
@@ -186,6 +223,9 @@ public class CombinationLockDoor : Door
             currentPlayer.SetReadingState(false);
 
         currentPlayer = null;
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     private void OnDisable()
@@ -194,15 +234,11 @@ public class CombinationLockDoor : Door
             ClosePanel();
     }
 
-    private void HidePanel()
-    {
-        if (combinationPanel != null)
-            combinationPanel.SetActive(false);
-    }
-
     private void ResetEnteredDigits()
     {
-        System.Array.Fill(enteredDigits, '0');
+        for (int i = 0; i < enteredDigits.Length; i++)
+            enteredDigits[i] = '0';
+
         currentSlotIndex = 0;
     }
 
@@ -223,4 +259,20 @@ public class CombinationLockDoor : Door
         if (statusText != null)
             statusText.text = text;
     }
+
+   private IEnumerator LoadSceneWithFade()
+{
+    // pause everything
+    Time.timeScale = 0f;
+
+    if (blackFadeImage != null)
+        blackFadeImage.gameObject.SetActive(true);
+
+    // wait 3 seconds (IMPORTANT: unscaled time)
+    yield return new WaitForSecondsRealtime(3f);
+
+    Time.timeScale = 1f;
+
+    SceneManager.LoadScene(sceneName);
+}
 }
