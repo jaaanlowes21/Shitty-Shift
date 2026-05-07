@@ -2,10 +2,12 @@ using UnityEngine;
 
 public abstract class InteractableBase : MonoBehaviour, IInteractable
 {
-    [Header("Interaction")]
-    [SerializeField] protected string interactionPrompt = "Press F to Interact";
-    [Header("Interaction Radius")]
-    public float interactionRadius = 2f;
+    [Header("Interaction Settings")]
+    public string interactionPrompt = "Press F to Interact";
+    public float interactionRadius = 2.5f;
+
+    // Explicit interface implementation
+    float IInteractable.interactionRadius => interactionRadius;
 
     public virtual string GetInteractionPrompt()
     {

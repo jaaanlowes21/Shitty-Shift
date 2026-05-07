@@ -410,35 +410,105 @@ public class PlayerMovement : MonoBehaviour
     }
 
     void DetectInteractable()
+{
+    currentInteractable = null;
+
+    if (isHidden)
+        return;
+
+    // Priority 1: Direct raycast (most accurate for doors)
+    IInteractable raycastHit = GetInteractableFromRaycast();
+    if (raycastHit != null)
     {
-        currentInteractable = null;
+        currentInteractable = raycastHit;
+        return;
+    }
 
-        if (isHidden)
-            return;
+    // Priority 2: Sphere overlap with angle checking
+    Collider[] hits = Physics.OverlapSphere(transform.position, interactDistance, interactMask);
 
-        Collider[] hits = Physics.OverlapSphere(transform.position, interactDistance, interactMask);
-
-        float closestDistance = Mathf.Infinity;
-        currentInteractable = null;
+    float bestScore = float.MinValue;
+    IInteractable bestInteractable = null;
 
     foreach (Collider col in hits)
     {
         MonoBehaviour[] behaviours = col.GetComponentsInParent<MonoBehaviour>();
 
         foreach (MonoBehaviour behaviour in behaviours)
-     {
-            if (behaviour is InteractableBase interactable)
+        {
+            if (behaviour is IInteractable interactable)
             {
-                float dist = Vector3.Distance(transform.position, behaviour.transform.position);
-
-                if (dist <= interactable.interactionRadius && dist < closestDistance)
+                Vector3 directionToObject = (behaviour.transform.position - transform.position).normalized;
+                float distance = Vector3.Distance(transform.position, behaviour.transform.position);
+                float dotProduct = Vector3.Dot(transform.forward, directionToObject);
+                
+                // Calculate a score based on angle and distance
+                // Higher dot product = more centered in view
+                // Lower distance = closer
+                float angleScore = dotProduct; // Range: -1 to 1
+                float distanceScore = 1f - (distance / interactDistance); // Range: 0 to 1
+                
+                // Combined score (angle is more important than distance)
+                float totalScore = (angleScore * 0.7f) + (distanceScore * 0.3f);
+                
+                if (distance <= interactable.interactionRadius && totalScore > bestScore)
                 {
-                    closestDistance = dist;
-                    currentInteractable = interactable;
+                    bestScore = totalScore;
+                    bestInteractable = interactable;
                 }
             }
         }
     }
+
+    currentInteractable = bestInteractable;
+}
+
+private IInteractable GetInteractableFromRaycast()
+{
+    Transform source = interactSource != null ? interactSource : transform;
+    
+    // Use a small sphere cast for better detection
+    RaycastHit hit;
+    float sphereRadius = 0.3f; // Small radius for better door handle detection
+    
+    if (Physics.SphereCast(source.position, sphereRadius, source.forward, out hit, interactDistance, interactMask))
+    {
+        MonoBehaviour[] behaviours = hit.collider.GetComponentsInParent<MonoBehaviour>();
+        
+        foreach (MonoBehaviour behaviour in behaviours)
+        {
+            if (behaviour is IInteractable interactable)
+            {
+                float dist = Vector3.Distance(transform.position, behaviour.transform.position);
+                
+                if (dist <= interactable.interactionRadius)
+                {
+                    return interactable;
+                }
+            }
+        }
+    }
+    
+    // If sphere cast fails, try regular raycast
+    if (Physics.Raycast(source.position, source.forward, out hit, interactDistance, interactMask))
+    {
+        MonoBehaviour[] behaviours = hit.collider.GetComponentsInParent<MonoBehaviour>();
+        
+        foreach (MonoBehaviour behaviour in behaviours)
+        {
+            if (behaviour is IInteractable interactable)
+            {
+                float dist = Vector3.Distance(transform.position, behaviour.transform.position);
+                
+                if (dist <= interactable.interactionRadius)
+                {
+                    return interactable;
+                }
+            }
+        }
+    }
+
+    return null;
 }
 
     public void EnterHide(HideableObject hideable)

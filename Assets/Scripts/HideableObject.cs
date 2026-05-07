@@ -38,14 +38,14 @@ public class HideableObject : InteractableBase
         if (hidePoint != null)
         {
             Gizmos.color = Color.blue;
-            Gizmos.DrawSphere(hidePoint.position, 0.15f);
+            Gizmos.DrawSphere(hidePoint.position, 0.30f);
             Gizmos.DrawLine(transform.position, hidePoint.position);
         }
 
         if (exitPoint != null)
         {
             Gizmos.color = Color.green;
-            Gizmos.DrawSphere(exitPoint.position, 0.15f);
+            Gizmos.DrawSphere(exitPoint.position, 0.30f);
             Gizmos.DrawLine(transform.position, exitPoint.position);
         }
     }
