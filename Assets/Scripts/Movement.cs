@@ -19,6 +19,8 @@ public class PlayerMovement : MonoBehaviour
     public float staminaRegenRate = 10f;
     public float staminaRegenDelay = 1.5f;
     public float hideStaminaRegenMultiplier = 1.5f;
+    public Image staminaFillImage;
+    public Image hpFillImage;
 
     [Header("Jump & Gravity")]
     public float jumpHeight = 1.5f;
@@ -64,8 +66,6 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("UI")]
     public TextMeshProUGUI interactionText;
-    public TextMeshProUGUI staminaText;
-    public TextMeshProUGUI hpText;
 
     [Header("Low Stamina Vignette")]
     public Image staminaVignette;
@@ -783,18 +783,42 @@ private IInteractable GetInteractableFromRaycast()
     }
 }
 
+void UpdateStatsUI()
+{
+    // Update HP fill bar
+    if (hpFillImage != null)
+    {
+        float hpPercent = currentHP / maxHP;
+        hpFillImage.fillAmount = hpPercent;
+        
+        // Optional: Change color based on HP
+        if (hpPercent > 0.5f)
+            hpFillImage.color = Color.green;
+        else if (hpPercent > 0.25f)
+            hpFillImage.color = Color.yellow;
+        else
+            hpFillImage.color = Color.red;
+    }
+
+    // Update Stamina fill bar
+    if (staminaFillImage != null)
+    {
+        float staminaPercent = currentStamina / maxStamina;
+        staminaFillImage.fillAmount = staminaPercent;
+        
+        // Optional: Change color based on stamina
+        if (staminaPercent > 0.5f)
+            staminaFillImage.color = Color.cyan;
+        else if (staminaPercent > 0.25f)
+            staminaFillImage.color = Color.yellow;
+        else
+            staminaFillImage.color = Color.red;
+    }
+}
+
     void OnDeath()
     {
         Debug.Log("Player died.");
-    }
-
-    void UpdateStatsUI()
-    {
-        if (staminaText != null)
-            staminaText.text = $"Stamina: {Mathf.CeilToInt(currentStamina)}";
-
-        if (hpText != null)
-            hpText.text = $"HP: {Mathf.CeilToInt(currentHP)}";
     }
 
     private void OnDrawGizmosSelected()

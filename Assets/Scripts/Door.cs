@@ -18,6 +18,16 @@ public class Door : InteractableBase
     public bool autoClose = true;
     public float autoCloseDelay = 3f;
 
+    [Header("Door Sounds")]
+    public AudioClip openSound;
+    [Range(0f, 1f)] public float openVolume = 0.7f;
+    
+    public AudioClip closeSound;
+    [Range(0f, 1f)] public float closeVolume = 0.7f;
+    
+    public AudioClip lockedSound; // Sound when trying to open a locked/closed door
+    [Range(0f, 1f)] public float lockedVolume = 0.8f;
+
     private const float RotationTolerance = 0.1f;
 
     private Quaternion closedRotation;
@@ -31,11 +41,20 @@ public class Door : InteractableBase
 
     private Coroutine rotateCoroutine;
     private Coroutine autoCloseCoroutine;
+    private AudioSource audioSource;
 
     private void Awake()
     {
         Rigidbody rb = GetComponent<Rigidbody>();
         if (rb != null) rb.isKinematic = true;
+
+        // Setup audio source
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+            audioSource = gameObject.AddComponent<AudioSource>();
+        
+        audioSource.spatialBlend = 1f; // 3D sound
+        audioSource.playOnAwake = false;
 
         closedRotation = transform.localRotation;
 
@@ -64,7 +83,7 @@ public class Door : InteractableBase
     private void Reset()
     {
         interactionPrompt = "Press F to Open";
-        interactionRadius = 2.5f; // 🔥 works with your radius system
+        interactionRadius = 2.5f; 
     }
 
     private void OnDisable()
@@ -85,38 +104,45 @@ public class Door : InteractableBase
     }
 
     public override void Interact(PlayerMovement player)
-{
-    LockedKeyDoor lockedDoor = GetComponent<LockedKeyDoor>();
-
-    if (lockedDoor != null && !lockedDoor.IsUnlocked)
     {
-        lockedDoor.Interact(player);
-        return;
+        LockedKeyDoor lockedDoor = GetComponent<LockedKeyDoor>();
+
+        if (lockedDoor != null && !lockedDoor.IsUnlocked)
+        {
+            lockedDoor.Interact(player);
+            return;
+        }
+
+        if (isMoving)
+            return;
+
+        if (isClosedDoor && !isOpen)
+        {
+            HintManager.Instance?.ShowHint("Weird, the doors are locked... I should try the other side");
+            PlaySound(lockedSound, lockedVolume);
+            return;
+        }
+
+        if (rotateCoroutine != null)
+            StopCoroutine(rotateCoroutine);
+
+        if (autoCloseCoroutine != null)
+            StopCoroutine(autoCloseCoroutine);
+
+        isOpen = !isOpen;
+
+        // Play appropriate sound
+        if (isOpen)
+            PlaySound(openSound, openVolume);
+        else
+            PlaySound(closeSound, closeVolume);
+
+        Quaternion targetRotation = isOpen ? openRotation : closedRotation;
+        rotateCoroutine = StartCoroutine(RotateDoor(targetRotation));
+
+        if (isOpen && autoClose)
+            autoCloseCoroutine = StartCoroutine(AutoCloseAfterDelay());
     }
-
-    if (isMoving)
-        return;
-
-    if (isClosedDoor && !isOpen)
-    {
-        HintManager.Instance?.ShowHint("Weird, the doors are locked... I should try the other side");
-        return;
-    }
-
-    if (rotateCoroutine != null)
-        StopCoroutine(rotateCoroutine);
-
-    if (autoCloseCoroutine != null)
-        StopCoroutine(autoCloseCoroutine);
-
-    isOpen = !isOpen;
-
-    Quaternion targetRotation = isOpen ? openRotation : closedRotation;
-    rotateCoroutine = StartCoroutine(RotateDoor(targetRotation));
-
-    if (isOpen && autoClose)
-        autoCloseCoroutine = StartCoroutine(AutoCloseAfterDelay());
-}
 
     public void ForceOpen()
     {
@@ -129,6 +155,7 @@ public class Door : InteractableBase
             StopCoroutine(autoCloseCoroutine);
 
         isOpen = true;
+        PlaySound(openSound, openVolume);
         rotateCoroutine = StartCoroutine(RotateDoor(openRotation));
 
         if (autoClose)
@@ -162,6 +189,15 @@ public class Door : InteractableBase
             yield break;
 
         isOpen = false;
+        PlaySound(closeSound, closeVolume);
         rotateCoroutine = StartCoroutine(RotateDoor(closedRotation));
+    }
+
+    private void PlaySound(AudioClip clip, float volume)
+    {
+        if (clip == null || audioSource == null)
+            return;
+
+        audioSource.PlayOneShot(clip, volume);
     }
 }

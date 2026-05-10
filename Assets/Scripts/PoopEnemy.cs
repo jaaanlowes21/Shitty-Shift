@@ -12,7 +12,11 @@ public class PoopEnemy : MonoBehaviour
         RoomTeleportUp,
         RoomSearch,
         Chase,
+        RoomChase,
         Attack,
+        RoomAttack,
+        Jumpscare,
+        Confused,
         ReturnToPatrol
     }
 
@@ -26,7 +30,8 @@ public class PoopEnemy : MonoBehaviour
 
     [Header("Speeds")]
     public float patrolSpeed = 2f;
-    public float chaseSpeed = 8f;
+    public float chaseSpeed = 6f;
+    public float roomChaseSpeed = 8f;
     public float rotationSpeed = 3f;
     public float sinkRiseSpeed = 2f;
 
@@ -35,6 +40,10 @@ public class PoopEnemy : MonoBehaviour
     public float waypointStopRadius = 7f;
     public float roomSearchRadius = 14f;
     public float attackRadius = 2.5f;
+
+    [Header("Line of Sight")]
+    public LayerMask sightBlockMask = ~0;
+    public float sightCheckHeight = 1f;
 
     [Header("Waypoint Stop Settings")]
     public float stopDuration = 3f;
@@ -46,15 +55,30 @@ public class PoopEnemy : MonoBehaviour
 
     [Header("Attack Settings")]
     public float attackSpeed = 10f;
+    public float attackDuration = 0.6f;
     public float attackDamagePercent = 0.3f;
     public float attackCooldown = 3f;
-    public float faceDistance = 0.5f;
+    public float faceDistance = 0.7f;
+    public float attackOffset = 0f;
+
+    [Header("Jumpscare Settings")]
+    public float jumpscareDuration = 2f;
+    public float jumpscareShakeIntensity = 1f;
+    public float enemyShakeAmount = 0.1f;
+
+    [Header("Safe Zone")]
+    public LayerMask classroomMask = 0;
+    public float classroomCheckRadius = 0.3f;
+
+    [Header("Confused State")]
+    public float confusedDelay = 3f; // Wait time before sinking
 
     [Header("Sink/Rise Settings")]
     public float sinkDepth = 1.5f;
 
     private PlayerMovement player;
     private EnemyState currentState;
+    private EnemyState chaseStartedFromState;
 
     private Vector3 originalScale;
     private float sinkProgress = 0f;
@@ -75,6 +99,13 @@ public class PoopEnemy : MonoBehaviour
 
     private Vector3 savedPatrolPosition;
     private Quaternion savedPatrolRotation;
+    private Vector3 attackTargetPosition;
+    private float attackTimer = 0f;
+    private float jumpscareTimer = 0f;
+    private float confusedTimer = 0f;
+
+    private float startupDelay = 5f;
+    private bool hasStarted = false;
 
     void Start()
     {
@@ -90,7 +121,6 @@ public class PoopEnemy : MonoBehaviour
         if (mainWaypoints.Length > 0)
         {
             currentWaypointIndex = 0;
-            EnterWaypointPatrol();
         }
         else
         {
@@ -104,10 +134,22 @@ public class PoopEnemy : MonoBehaviour
         if (IntroManager.IsIntroActive)
             return;
 
-        if (isOnCooldown)
-            UpdateCooldown();
+        if (!hasStarted)
+    {
+        startupDelay -= Time.deltaTime;
+        if (startupDelay <= 0f)
+        {
+            hasStarted = true;
+            EnterWaypointPatrol();
+            Debug.Log("[Poop] → Startup complete, beginning patrol!");
+        }
+        return; // Don't do anything else during startup delay
+    }
 
-        HandleSinkRise();
+    if (isOnCooldown)
+        UpdateCooldown();
+
+    HandleSinkRise();
 
         switch (currentState)
         {
@@ -118,10 +160,8 @@ public class PoopEnemy : MonoBehaviour
                 UpdateWaypointStop();
                 break;
             case EnemyState.RoomTeleportDown:
-                // Handled in HandleSinkRise
                 break;
             case EnemyState.RoomTeleportUp:
-                // Handled in HandleSinkRise
                 break;
             case EnemyState.RoomSearch:
                 UpdateRoomSearch();
@@ -129,11 +169,22 @@ public class PoopEnemy : MonoBehaviour
             case EnemyState.Chase:
                 UpdateChase();
                 break;
+            case EnemyState.RoomChase:
+                UpdateRoomChase();
+                break;
             case EnemyState.Attack:
                 UpdateAttack();
                 break;
+            case EnemyState.RoomAttack:
+                UpdateRoomAttack();
+                break;
+            case EnemyState.Jumpscare:
+                UpdateJumpscare();
+                break;
+            case EnemyState.Confused:
+                UpdateConfused();
+                break;
             case EnemyState.ReturnToPatrol:
-                // Handled in HandleSinkRise
                 break;
         }
     }
@@ -167,48 +218,53 @@ public class PoopEnemy : MonoBehaviour
     }
 
     private void OnSinkComplete()
+{
+    // At this point the enemy is fully shrunk down
+    
+    if (currentState == EnemyState.RoomTeleportDown)
     {
-        if (currentState == EnemyState.RoomTeleportDown)
+        // Teleport to random room waypoint
+        if (roomWaypoints.Length > 0)
         {
-            // Teleport to random room waypoint
-            if (roomWaypoints.Length > 0)
-            {
-                currentRoomWaypoint = roomWaypoints[Random.Range(0, roomWaypoints.Length)];
-                transform.position = currentRoomWaypoint.position;
-            }
+            currentRoomWaypoint = roomWaypoints[Random.Range(0, roomWaypoints.Length)];
+            transform.position = currentRoomWaypoint.position;
+        }
 
-            // Start rising
-            StartRising();
-            currentState = EnemyState.RoomTeleportUp;
-        }
-        else if (currentState == EnemyState.ReturnToPatrol)
-        {
-            // Reset to first waypoint when returning from room
-            currentWaypointIndex = 0;
-            waypointsVisited = 0;
-            
-            // Teleport to first waypoint
-            if (mainWaypoints.Length > 0)
-            {
-                transform.position = mainWaypoints[0].position;
-            }
-            
-            // Start rising at the first waypoint
-            StartRising();
-        }
+        // Start rising at the new location
+        StartRising();
+        currentState = EnemyState.RoomTeleportUp;
     }
+    else if (currentState == EnemyState.ReturnToPatrol)
+    {
+        // Teleport to first waypoint
+        currentWaypointIndex = 0;
+        waypointsVisited = 0;
+        
+        if (mainWaypoints.Length > 0)
+        {
+            transform.position = mainWaypoints[0].position;
+        }
+        
+        // Start rising at the new location
+        StartRising();
+        // Keep state as ReturnToPatrol for OnRiseComplete
+    }
+}
 
     private void OnRiseComplete()
+{
+    // At this point the enemy is fully grown at the new location
+    
+    if (currentState == EnemyState.RoomTeleportUp)
     {
-        if (currentState == EnemyState.RoomTeleportUp)
-        {
-            EnterRoomSearch();
-        }
-        else if (currentState == EnemyState.ReturnToPatrol)
-        {
-            EnterWaypointPatrol();
-        }
+        EnterRoomSearch();
     }
+    else if (currentState == EnemyState.ReturnToPatrol)
+    {
+        // Finished rising at waypoint, resume patrol
+        EnterWaypointPatrol();
+    }
+}
 
     private void StartSinking()
     {
@@ -229,6 +285,7 @@ public class PoopEnemy : MonoBehaviour
     private void EnterWaypointPatrol()
     {
         currentState = EnemyState.WaypointPatrol;
+        MakeSolid();
         Debug.Log($"[Poop] → WaypointPatrol | Heading to waypoint {currentWaypointIndex}");
     }
 
@@ -251,49 +308,140 @@ public class PoopEnemy : MonoBehaviour
         baseYRotation = transform.eulerAngles.y;
         currentRotationOffset = 0f;
         isRotatingRight = true;
+        MakeGhost();
         Debug.Log($"[Poop] → RoomSearch | Searching room with large detection");
     }
 
-    private void EnterChaseMode()
+    private void EnterChaseMode(EnemyState startedFrom)
     {
+        if (player == null || player.IsHidden)
+            return;
+
         currentState = EnemyState.Chase;
+        chaseStartedFromState = startedFrom;
         
-        // Save position for return
         savedPatrolPosition = transform.position;
         savedPatrolRotation = transform.rotation;
 
-        // Make enemy pass through everything
-        MakeGhost();
+        MakeSolid();
+        attackTimer = 0f;
+
+        AudioManager2.Instance?.PlayDetectionSound();
         
-        Debug.Log("[Poop] → Chase | Player detected! Charging through everything!");
+        Debug.Log("[Poop] → Chase | Player detected! Normal chase with collisions");
+    }
+
+    private void EnterRoomChaseMode()
+    {
+        if (player == null || player.IsHidden)
+            return;
+
+        currentState = EnemyState.RoomChase;
+        
+        savedPatrolPosition = transform.position;
+        savedPatrolRotation = transform.rotation;
+
+        MakeGhost();
+        attackTimer = 0f;
+
+        AudioManager2.Instance?.PlayDetectionSound();
+        
+        Debug.Log("[Poop] → RoomChase | Player detected in room! Ghost chase through everything!");
     }
 
     private void EnterAttackMode()
     {
         if (player == null)
         {
-            ReturnToPatrol();
+            EnterConfusedState();
             return;
         }
 
         currentState = EnemyState.Attack;
-        Debug.Log("[Poop] → Attack | Attacking player!");
+        attackTimer = 0f;
+
+        AudioManager2.Instance?.PlayAttackSound();
+
+        Vector3 forward = player.transform.forward;
+        forward.y = 0f;
+        forward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
+
+        attackTargetPosition = player.transform.position + forward * faceDistance;
+        attackTargetPosition.y = transform.position.y;
+
+        Vector3 directionFromPlayerToEnemy = (transform.position - player.transform.position).normalized;
+        attackTargetPosition += directionFromPlayerToEnemy * attackOffset;
+
+        RotateTowards(attackTargetPosition);
+        Debug.Log("[Poop] → Attack | Normal attack with collisions");
     }
+
+    private void EnterRoomAttackMode()
+    {
+        if (player == null)
+        {
+            EnterConfusedState();
+            return;
+        }
+
+        currentState = EnemyState.RoomAttack;
+        attackTimer = 0f;
+
+        AudioManager2.Instance?.PlayAttackSound();
+
+        Vector3 forward = player.transform.forward;
+        forward.y = 0f;
+        forward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
+
+        attackTargetPosition = player.transform.position + forward * faceDistance;
+        attackTargetPosition.y = transform.position.y;
+
+        Vector3 directionFromPlayerToEnemy = (transform.position - player.transform.position).normalized;
+        attackTargetPosition += directionFromPlayerToEnemy * attackOffset;
+
+        MakeGhost();
+        RotateTowards(attackTargetPosition);
+        Debug.Log("[Poop] → RoomAttack | Ghost attack through everything!");
+    }
+
+    private void PerformJumpscare()
+    {
+        if (player != null)
+            player.StartJumpscare(transform, jumpscareDuration, jumpscareShakeIntensity);
+
+        currentState = EnemyState.Jumpscare;
+        jumpscareTimer = jumpscareDuration;
+        isOnCooldown = true;
+        cooldownTimer = attackCooldown;
+        MakeGhost();
+    }
+
+    private void EnterConfusedState()
+{
+    if (player != null)
+        player.StopJumpscare();
+
+    currentState = EnemyState.Confused;
+    confusedTimer = confusedDelay; // Wait 3 seconds before sinking
+    MakeSolid();
+
+    AudioManager2.Instance?.PlayConfusedSound();
+    
+    Debug.Log($"[Poop] → Confused | Player escaped! Waiting {confusedDelay} seconds before sinking...");
+}
 
     private void ReturnToPatrol()
     {
+        if (player != null)
+            player.StopJumpscare();
+
         currentState = EnemyState.ReturnToPatrol;
-        
-        // Restore normal collision
         MakeSolid();
-        
-        // Sink and teleport back to first waypoint
         StartSinking();
     }
 
     private void MakeGhost()
     {
-        // Disable all colliders to pass through everything
         Collider[] colliders = GetComponents<Collider>();
         foreach (Collider col in colliders)
         {
@@ -303,7 +451,6 @@ public class PoopEnemy : MonoBehaviour
 
     private void MakeSolid()
     {
-        // Re-enable all colliders
         Collider[] colliders = GetComponents<Collider>();
         foreach (Collider col in colliders)
         {
@@ -311,33 +458,46 @@ public class PoopEnemy : MonoBehaviour
         }
     }
 
+    private bool HasLineOfSightToPlayer()
+    {
+        if (player == null)
+            return false;
+
+        Vector3 origin = transform.position + Vector3.up * sightCheckHeight;
+        Vector3 target = player.transform.position + Vector3.up * sightCheckHeight;
+        Vector3 direction = target - origin;
+        float distance = direction.magnitude;
+
+        if (Physics.Raycast(origin, direction.normalized, distance, sightBlockMask))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     private void UpdateWaypointPatrol()
     {
-        // Check for player with walking detection radius
-        if (CanDetectPlayer(patrolWalkRadius))
+        if (CanDetectPlayer(patrolWalkRadius) && HasLineOfSightToPlayer())
         {
-            EnterChaseMode();
+            EnterChaseMode(EnemyState.WaypointPatrol);
             return;
         }
 
-        // Move towards current waypoint in a straight line
         Vector3 targetPosition = mainWaypoints[currentWaypointIndex].position;
-        targetPosition.y = transform.position.y; // Keep same height
+        targetPosition.y = transform.position.y;
         
         Vector3 direction = (targetPosition - transform.position).normalized;
         float distance = Vector3.Distance(transform.position, targetPosition);
 
-        // Face the direction we're moving
         if (direction != Vector3.zero)
         {
             Quaternion targetRotation = Quaternion.LookRotation(direction);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
         }
 
-        // Move forward (simple position change)
         transform.position += direction * patrolSpeed * Time.deltaTime;
 
-        // Check if we reached the waypoint
         if (distance <= 0.5f)
         {
             waypointsVisited++;
@@ -347,14 +507,12 @@ public class PoopEnemy : MonoBehaviour
 
     private void UpdateWaypointStop()
     {
-        // Check for player with stop detection radius
-        if (CanDetectPlayer(waypointStopRadius))
+        if (CanDetectPlayer(waypointStopRadius) && HasLineOfSightToPlayer())
         {
-            EnterChaseMode();
+            EnterChaseMode(EnemyState.WaypointStop);
             return;
         }
 
-        // Smooth rotation left and right
         if (!isPausingRotation)
         {
             float targetOffset = isRotatingRight ? rotationAngle : -rotationAngle;
@@ -362,7 +520,6 @@ public class PoopEnemy : MonoBehaviour
             
             transform.rotation = Quaternion.Euler(0f, baseYRotation + currentRotationOffset, 0f);
 
-            // Check if we've rotated enough
             if (Mathf.Abs(currentRotationOffset - targetOffset) < 1f)
             {
                 isPausingRotation = true;
@@ -382,22 +539,19 @@ public class PoopEnemy : MonoBehaviour
         stopTimer -= Time.deltaTime;
         if (stopTimer <= 0f)
         {
-            // Every 3rd waypoint, teleport to room
             if (waypointsVisited >= 3)
             {
                 waypointsVisited = 0;
                 lastMainWaypoint = mainWaypoints[currentWaypointIndex];
-                
-                // Save rotation for return
                 savedPatrolRotation = transform.rotation;
+
+                AudioManager2.Instance?.PlayTeleportSound();
                 
-                // Sink down for teleport
                 StartSinking();
                 currentState = EnemyState.RoomTeleportDown;
             }
             else
             {
-                // Move to next waypoint
                 currentWaypointIndex = (currentWaypointIndex + 1) % mainWaypoints.Length;
                 EnterWaypointPatrol();
             }
@@ -406,14 +560,12 @@ public class PoopEnemy : MonoBehaviour
 
     private void UpdateRoomSearch()
     {
-        // Check for player with large room detection radius
         if (CanDetectPlayer(roomSearchRadius))
         {
-            EnterChaseMode();
+            EnterRoomChaseMode();
             return;
         }
 
-        // Rotate while searching (like scanning the room)
         float rotationThisFrame = rotationSpeed * 60f * Time.deltaTime;
         currentRotationOffset += rotationThisFrame;
         transform.rotation = Quaternion.Euler(0f, baseYRotation + currentRotationOffset, 0f);
@@ -421,7 +573,6 @@ public class PoopEnemy : MonoBehaviour
         searchTimer -= Time.deltaTime;
         if (searchTimer <= 0f)
         {
-            // No player found, return to patrol
             ReturnToPatrol();
         }
     }
@@ -430,30 +581,71 @@ public class PoopEnemy : MonoBehaviour
     {
         if (player == null)
         {
-            ReturnToPatrol();
+            EnterConfusedState();
             return;
         }
 
-        // Direct movement towards player - passes through EVERYTHING
+        if (player.IsHidden)
+        {
+            EnterConfusedState();
+            return;
+        }
+
+        if (IsPlayerInsideClassroom())
+        {
+            EnterConfusedState();
+            return;
+        }
+
         Vector3 direction = (player.transform.position - transform.position).normalized;
         direction.y = 0f;
         
-        // Face the player
         if (direction != Vector3.zero)
         {
             Quaternion targetRotation = Quaternion.LookRotation(direction);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * 2f * Time.deltaTime);
         }
 
-        // Move through walls, objects, everything!
         transform.position += direction * chaseSpeed * Time.deltaTime;
 
         float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
 
-        // No charge time - instant attack when in range
         if (distanceToPlayer <= attackRadius && !isOnCooldown)
         {
             EnterAttackMode();
+        }
+    }
+
+    private void UpdateRoomChase()
+    {
+        if (player == null)
+        {
+            EnterConfusedState();
+            return;
+        }
+
+        if (player.IsHidden)
+        {
+            EnterConfusedState();
+            return;
+        }
+
+        Vector3 direction = (player.transform.position - transform.position).normalized;
+        direction.y = 0f;
+        
+        if (direction != Vector3.zero)
+        {
+            Quaternion targetRotation = Quaternion.LookRotation(direction);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * 2f * Time.deltaTime);
+        }
+
+        transform.position += direction * roomChaseSpeed * Time.deltaTime;
+
+        float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
+
+        if (distanceToPlayer <= attackRadius && !isOnCooldown)
+        {
+            EnterRoomAttackMode();
         }
     }
 
@@ -461,32 +653,111 @@ public class PoopEnemy : MonoBehaviour
     {
         if (player == null)
         {
-            ReturnToPatrol();
+            EnterConfusedState();
             return;
         }
 
-        // Lunge at player through everything
-        Vector3 attackDirection = (player.transform.position - transform.position).normalized;
-        attackDirection.y = 0f;
-        
-        transform.rotation = Quaternion.LookRotation(attackDirection);
-        transform.position += attackDirection * attackSpeed * Time.deltaTime;
-
-        float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
-
-        if (distanceToPlayer <= faceDistance)
+        if (IsPlayerInsideClassroom())
         {
-            // Deal damage
-            player.TakeDamage(player.maxHP * attackDamagePercent);
-            
-            // Start cooldown
-            isOnCooldown = true;
-            cooldownTimer = attackCooldown;
-            
-            // Return to patrol after attack
-            ReturnToPatrol();
+            EnterConfusedState();
+            return;
+        }
+
+        RotateTowards(attackTargetPosition);
+
+        transform.position = Vector3.MoveTowards(
+            transform.position,
+            attackTargetPosition,
+            attackSpeed * Time.deltaTime
+        );
+
+        attackTimer += Time.deltaTime;
+
+        if (attackTimer >= attackDuration || Vector3.Distance(transform.position, attackTargetPosition) < 0.1f)
+        {
+            float damageRadius = attackRadius + 0.5f;
+
+            if (Vector3.Distance(transform.position, player.transform.position) <= damageRadius)
+                player.TakeDamage(player.maxHP * attackDamagePercent);
+
+            PerformJumpscare();
         }
     }
+
+    private void UpdateRoomAttack()
+    {
+        if (player == null)
+        {
+            EnterConfusedState();
+            return;
+        }
+
+        RotateTowards(attackTargetPosition);
+
+        transform.position = Vector3.MoveTowards(
+            transform.position,
+            attackTargetPosition,
+            attackSpeed * Time.deltaTime
+        );
+
+        attackTimer += Time.deltaTime;
+
+        if (attackTimer >= attackDuration || Vector3.Distance(transform.position, attackTargetPosition) < 0.1f)
+        {
+            float damageRadius = attackRadius + 0.5f;
+
+            if (Vector3.Distance(transform.position, player.transform.position) <= damageRadius)
+                player.TakeDamage(player.maxHP * attackDamagePercent);
+
+            PerformJumpscare();
+        }
+    }
+
+    private void UpdateJumpscare()
+    {
+        if (player == null)
+        {
+            EnterConfusedState();
+            return;
+        }
+
+        jumpscareTimer -= Time.deltaTime;
+
+        Vector3 targetFacePosition = player.transform.position + player.transform.forward * faceDistance;
+        targetFacePosition.y = transform.position.y;
+
+        Vector3 directionFromPlayerToEnemy = (transform.position - player.transform.position).normalized;
+        targetFacePosition += directionFromPlayerToEnemy * attackOffset;
+
+        Vector3 basePosition = Vector3.MoveTowards(
+            transform.position,
+            targetFacePosition,
+            attackSpeed * Time.deltaTime
+        );
+
+        Vector3 shake = Random.insideUnitSphere * enemyShakeAmount;
+        shake.y *= 0.3f;
+
+        transform.position = basePosition + shake;
+        RotateTowards(player.transform.position);
+
+        if (jumpscareTimer <= 0f)
+            EnterConfusedState(); // After jumpscare, wait then sink
+    }
+
+    private void UpdateConfused()
+{
+    // Just wait, don't sink yet
+    confusedTimer -= Time.deltaTime;
+    
+    if (confusedTimer <= 0f)
+    {
+        // NOW start sinking after the delay
+        Debug.Log("[Poop] → Confused | Done waiting, sinking now...");
+        StartSinking();
+        currentState = EnemyState.ReturnToPatrol; // So OnSinkComplete teleports to waypoint
+    }
+}
 
     private bool CanDetectPlayer(float radius)
     {
@@ -500,6 +771,19 @@ public class PoopEnemy : MonoBehaviour
         return distance <= radius;
     }
 
+    private bool IsPlayerInsideClassroom()
+    {
+        if (player == null) return false;
+        if (classroomMask.value == 0) return false;
+
+        return Physics.CheckSphere(
+            player.transform.position,
+            classroomCheckRadius,
+            classroomMask,
+            QueryTriggerInteraction.Collide
+        );
+    }
+
     private void UpdateCooldown()
     {
         cooldownTimer -= Time.deltaTime;
@@ -510,9 +794,17 @@ public class PoopEnemy : MonoBehaviour
         }
     }
 
+    private void RotateTowards(Vector3 worldPosition)
+    {
+        Vector3 direction = worldPosition - transform.position;
+        direction.y = 0f;
+
+        if (direction.sqrMagnitude > 0.0001f)
+            transform.rotation = Quaternion.LookRotation(direction);
+    }
+
     private void OnDrawGizmosSelected()
     {
-        // Draw waypoints
         if (mainWaypoints != null)
         {
             Gizmos.color = Color.green;
@@ -529,7 +821,6 @@ public class PoopEnemy : MonoBehaviour
             }
         }
 
-        // Draw room waypoints
         if (roomWaypoints != null)
         {
             Gizmos.color = Color.magenta;
@@ -543,7 +834,6 @@ public class PoopEnemy : MonoBehaviour
             }
         }
 
-        // Draw detection radii
         Gizmos.color = new Color(0f, 1f, 0f, 0.2f);
         Gizmos.DrawWireSphere(transform.position, patrolWalkRadius);
 
@@ -555,5 +845,18 @@ public class PoopEnemy : MonoBehaviour
 
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, attackRadius);
+
+        if (player != null)
+        {
+            Vector3 origin = transform.position + Vector3.up * sightCheckHeight;
+            Vector3 target = player.transform.position + Vector3.up * sightCheckHeight;
+            
+            if (HasLineOfSightToPlayer())
+                Gizmos.color = Color.green;
+            else
+                Gizmos.color = Color.red;
+                
+            Gizmos.DrawLine(origin, target);
+        }
     }
 }
