@@ -33,6 +33,7 @@ public class AudioManager2 : MonoBehaviour
     [Range(0f, 1f)] public float confusedVolume = 0.7f;
 
     private Coroutine eerieRoutine;
+    private float sfxMasterVolume = 1f;
 
     private void Awake()
     {
@@ -53,6 +54,11 @@ public class AudioManager2 : MonoBehaviour
     {
         PlayGameBGM();
         eerieRoutine = StartCoroutine(EerieSoundRoutine());
+    }
+
+    public void SetSFXVolume(float volume)
+    {
+        sfxMasterVolume = volume;
     }
 
     private void SetupSources()
@@ -127,7 +133,7 @@ public class AudioManager2 : MonoBehaviour
         if (clip == null || sfxSource == null)
             return;
 
-        sfxSource.PlayOneShot(clip, volume);
+        sfxSource.PlayOneShot(clip, volume * sfxMasterVolume);
     }
 
     private void PlayAmbient(AudioClip clip, float volume)
@@ -135,7 +141,7 @@ public class AudioManager2 : MonoBehaviour
         if (clip == null || ambientSource == null)
             return;
 
-        ambientSource.PlayOneShot(clip, volume);
+        ambientSource.PlayOneShot(clip, volume * sfxMasterVolume);
     }
 
     public void SetBGMVolume(float volume)

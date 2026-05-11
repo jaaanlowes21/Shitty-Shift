@@ -20,7 +20,7 @@ RenderSettings:
   m_FogDensity: 0.01
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
-  m_AmbientSkyColor: {r: 0, g: 0, b: 0, a: 1}
+  m_AmbientSkyColor: {r: 1, g: 1, b: 1, a: 1}
   m_AmbientEquatorColor: {r: 0.114, g: 0.125, b: 0.133, a: 1}
   m_AmbientGroundColor: {r: 0.047, g: 0.043, b: 0.035, a: 1}
   m_AmbientIntensity: 1
@@ -2314,6 +2314,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 0
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &111235315
 GameObject:
   m_ObjectHideFlags: 0
@@ -3175,6 +3181,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 1
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &194735353
 GameObject:
   m_ObjectHideFlags: 0
@@ -4662,6 +4674,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 0
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &345372834
 GameObject:
   m_ObjectHideFlags: 0
@@ -4855,6 +4873,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 1
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &372292018
 GameObject:
   m_ObjectHideFlags: 0
@@ -8285,6 +8309,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 0
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &592440613
 GameObject:
   m_ObjectHideFlags: 0
@@ -8987,6 +9017,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 1
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &653674701
 GameObject:
   m_ObjectHideFlags: 0
@@ -10334,6 +10370,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 0
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &755267740
 GameObject:
   m_ObjectHideFlags: 0
@@ -12371,6 +12413,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 0
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &888250862
 GameObject:
   m_ObjectHideFlags: 0
@@ -14056,6 +14104,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 0
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &1002785674
 GameObject:
   m_ObjectHideFlags: 0
@@ -14873,6 +14927,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 1
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &1074328705
 GameObject:
   m_ObjectHideFlags: 0
@@ -15035,6 +15095,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 1
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &1087520610
 GameObject:
   m_ObjectHideFlags: 0
@@ -20844,6 +20910,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 0
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &1526868550
 GameObject:
   m_ObjectHideFlags: 0
@@ -22587,6 +22659,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 0
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &1696611152
 GameObject:
   m_ObjectHideFlags: 0
@@ -25174,6 +25252,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 0
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &1813415223
 GameObject:
   m_ObjectHideFlags: 0
@@ -27321,6 +27405,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 1
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &1999015767
 GameObject:
   m_ObjectHideFlags: 0
@@ -27778,6 +27868,12 @@ MonoBehaviour:
   isClosedDoor: 0
   autoClose: 0
   autoCloseDelay: 3
+  openSound: {fileID: 0}
+  openVolume: 0.7
+  closeSound: {fileID: 0}
+  closeVolume: 0.7
+  lockedSound: {fileID: 0}
+  lockedVolume: 0.8
 --- !u!1 &2029590972
 GameObject:
   m_ObjectHideFlags: 0

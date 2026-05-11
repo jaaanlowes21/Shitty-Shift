@@ -171,7 +171,8 @@ public class PlayerMovement : MonoBehaviour
 
     void Update()
     {
-        if (IntroManager.IsIntroActive)
+        // Check for both intro managers
+        if (IntroManager.IsIntroActive || SecondFloorManager.IsSecondFloorIntroActive)
         {
             currentMove = Vector3.zero;
             moveInput = Vector2.zero;
@@ -181,6 +182,12 @@ public class PlayerMovement : MonoBehaviour
             UpdateStatsUI();
             UpdateStaminaVignette();
             return;
+        }
+
+        // Check if game is paused (InGameMenu)
+        if (Time.timeScale == 0f)
+        {
+            return; // Don't process any input when paused
         }
 
         HandleInteraction();
@@ -281,8 +288,24 @@ public class PlayerMovement : MonoBehaviour
 
     void HandleMouseLook()
     {
-        if (isReading)
+        // Don't allow mouse look when reading, intro active, or game paused
+        if (isReading || IntroManager.IsIntroActive || SecondFloorManager.IsSecondFloorIntroActive || Time.timeScale == 0f)
+        {
+            // Show cursor when paused
+            if (Time.timeScale == 0f)
+            {
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
             return;
+        }
+
+        // Ensure cursor is locked during gameplay
+        if (Cursor.lockState != CursorLockMode.Locked)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
 
         if (isLookLocked)
         {
@@ -410,106 +433,99 @@ public class PlayerMovement : MonoBehaviour
     }
 
     void DetectInteractable()
-{
-    currentInteractable = null;
-
-    if (isHidden)
-        return;
-
-    // Priority 1: Direct raycast (most accurate for doors)
-    IInteractable raycastHit = GetInteractableFromRaycast();
-    if (raycastHit != null)
     {
-        currentInteractable = raycastHit;
-        return;
-    }
+        currentInteractable = null;
 
-    // Priority 2: Sphere overlap with angle checking
-    Collider[] hits = Physics.OverlapSphere(transform.position, interactDistance, interactMask);
+        if (isHidden)
+            return;
 
-    float bestScore = float.MinValue;
-    IInteractable bestInteractable = null;
-
-    foreach (Collider col in hits)
-    {
-        MonoBehaviour[] behaviours = col.GetComponentsInParent<MonoBehaviour>();
-
-        foreach (MonoBehaviour behaviour in behaviours)
+        // Priority 1: Direct raycast (most accurate for doors)
+        IInteractable raycastHit = GetInteractableFromRaycast();
+        if (raycastHit != null)
         {
-            if (behaviour is IInteractable interactable)
+            currentInteractable = raycastHit;
+            return;
+        }
+
+        // Priority 2: Sphere overlap with angle checking
+        Collider[] hits = Physics.OverlapSphere(transform.position, interactDistance, interactMask);
+
+        float bestScore = float.MinValue;
+        IInteractable bestInteractable = null;
+
+        foreach (Collider col in hits)
+        {
+            MonoBehaviour[] behaviours = col.GetComponentsInParent<MonoBehaviour>();
+
+            foreach (MonoBehaviour behaviour in behaviours)
             {
-                Vector3 directionToObject = (behaviour.transform.position - transform.position).normalized;
-                float distance = Vector3.Distance(transform.position, behaviour.transform.position);
-                float dotProduct = Vector3.Dot(transform.forward, directionToObject);
-                
-                // Calculate a score based on angle and distance
-                // Higher dot product = more centered in view
-                // Lower distance = closer
-                float angleScore = dotProduct; // Range: -1 to 1
-                float distanceScore = 1f - (distance / interactDistance); // Range: 0 to 1
-                
-                // Combined score (angle is more important than distance)
-                float totalScore = (angleScore * 0.7f) + (distanceScore * 0.3f);
-                
-                if (distance <= interactable.interactionRadius && totalScore > bestScore)
+                if (behaviour is IInteractable interactable)
                 {
-                    bestScore = totalScore;
-                    bestInteractable = interactable;
+                    Vector3 directionToObject = (behaviour.transform.position - transform.position).normalized;
+                    float distance = Vector3.Distance(transform.position, behaviour.transform.position);
+                    float dotProduct = Vector3.Dot(transform.forward, directionToObject);
+                    
+                    float angleScore = dotProduct;
+                    float distanceScore = 1f - (distance / interactDistance);
+                    float totalScore = (angleScore * 0.7f) + (distanceScore * 0.3f);
+                    
+                    if (distance <= interactable.interactionRadius && totalScore > bestScore)
+                    {
+                        bestScore = totalScore;
+                        bestInteractable = interactable;
+                    }
                 }
             }
         }
+
+        currentInteractable = bestInteractable;
     }
 
-    currentInteractable = bestInteractable;
-}
-
-private IInteractable GetInteractableFromRaycast()
-{
-    Transform source = interactSource != null ? interactSource : transform;
-    
-    // Use a small sphere cast for better detection
-    RaycastHit hit;
-    float sphereRadius = 0.3f; // Small radius for better door handle detection
-    
-    if (Physics.SphereCast(source.position, sphereRadius, source.forward, out hit, interactDistance, interactMask))
+    private IInteractable GetInteractableFromRaycast()
     {
-        MonoBehaviour[] behaviours = hit.collider.GetComponentsInParent<MonoBehaviour>();
+        Transform source = interactSource != null ? interactSource : transform;
         
-        foreach (MonoBehaviour behaviour in behaviours)
-        {
-            if (behaviour is IInteractable interactable)
-            {
-                float dist = Vector3.Distance(transform.position, behaviour.transform.position);
-                
-                if (dist <= interactable.interactionRadius)
-                {
-                    return interactable;
-                }
-            }
-        }
-    }
-    
-    // If sphere cast fails, try regular raycast
-    if (Physics.Raycast(source.position, source.forward, out hit, interactDistance, interactMask))
-    {
-        MonoBehaviour[] behaviours = hit.collider.GetComponentsInParent<MonoBehaviour>();
+        RaycastHit hit;
+        float sphereRadius = 0.3f;
         
-        foreach (MonoBehaviour behaviour in behaviours)
+        if (Physics.SphereCast(source.position, sphereRadius, source.forward, out hit, interactDistance, interactMask))
         {
-            if (behaviour is IInteractable interactable)
+            MonoBehaviour[] behaviours = hit.collider.GetComponentsInParent<MonoBehaviour>();
+            
+            foreach (MonoBehaviour behaviour in behaviours)
             {
-                float dist = Vector3.Distance(transform.position, behaviour.transform.position);
-                
-                if (dist <= interactable.interactionRadius)
+                if (behaviour is IInteractable interactable)
                 {
-                    return interactable;
+                    float dist = Vector3.Distance(transform.position, behaviour.transform.position);
+                    
+                    if (dist <= interactable.interactionRadius)
+                    {
+                        return interactable;
+                    }
                 }
             }
         }
-    }
+        
+        if (Physics.Raycast(source.position, source.forward, out hit, interactDistance, interactMask))
+        {
+            MonoBehaviour[] behaviours = hit.collider.GetComponentsInParent<MonoBehaviour>();
+            
+            foreach (MonoBehaviour behaviour in behaviours)
+            {
+                if (behaviour is IInteractable interactable)
+                {
+                    float dist = Vector3.Distance(transform.position, behaviour.transform.position);
+                    
+                    if (dist <= interactable.interactionRadius)
+                    {
+                        return interactable;
+                    }
+                }
+            }
+        }
 
-    return null;
-}
+        return null;
+    }
 
     public void EnterHide(HideableObject hideable)
     {
@@ -732,12 +748,13 @@ private IInteractable GetInteractableFromRaycast()
         staminaVignette.color = c;
     }
 
-   public void TakeDamage(float amount)
+    public void TakeDamage(float amount)
     {
         currentHP -= amount;
         currentHP = Mathf.Max(currentHP, 0f);
 
         UpdateHPStageIndicators();
+        UpdateStatsUI();
 
         if (currentHP <= 0f)
             OnDeath();
@@ -749,72 +766,54 @@ private IInteractable GetInteractableFromRaycast()
         currentHP = Mathf.Min(currentHP, maxHP);
 
         UpdateHPStageIndicators();
+        UpdateStatsUI();
     }
 
     void UpdateHPStageIndicators()
-{
-    if (hpStageIndicators == null || hpStageIndicators.Length == 0)
-        return;
-
-    float hpPercent = currentHP / maxHP;
-
-    int stage = 0;
-
-    if (hpPercent <= 0f)
-        stage = 5;
-    else if (hpPercent <= 0.2f)
-        stage = 4;
-    else if (hpPercent <= 0.4f)
-        stage = 3;
-    else if (hpPercent <= 0.6f)
-        stage = 2;
-    else if (hpPercent <= 0.8f)
-        stage = 1;
-    else
-        stage = 0;
-
-    // Turn ON all indicators up to current stage
-    for (int i = 0; i < hpStageIndicators.Length; i++)
     {
-        if (hpStageIndicators[i] != null)
+        if (hpStageIndicators == null || hpStageIndicators.Length == 0)
+            return;
+
+        float hpPercent = currentHP / maxHP;
+
+        int stage = 0;
+
+        if (hpPercent <= 0f)
+            stage = 5;
+        else if (hpPercent <= 0.2f)
+            stage = 4;
+        else if (hpPercent <= 0.4f)
+            stage = 3;
+        else if (hpPercent <= 0.6f)
+            stage = 2;
+        else if (hpPercent <= 0.8f)
+            stage = 1;
+        else
+            stage = 0;
+
+        for (int i = 0; i < hpStageIndicators.Length; i++)
         {
-            hpStageIndicators[i].SetActive(i < stage);
+            if (hpStageIndicators[i] != null)
+            {
+                hpStageIndicators[i].SetActive(i < stage);
+            }
         }
     }
-}
 
-void UpdateStatsUI()
-{
-    // Update HP fill bar
-    if (hpFillImage != null)
+    void UpdateStatsUI()
     {
-        float hpPercent = currentHP / maxHP;
-        hpFillImage.fillAmount = hpPercent;
-        
-        // Optional: Change color based on HP
-        if (hpPercent > 0.5f)
-            hpFillImage.color = Color.green;
-        else if (hpPercent > 0.25f)
-            hpFillImage.color = Color.yellow;
-        else
-            hpFillImage.color = Color.red;
-    }
+        if (hpFillImage != null)
+        {
+            float hpPercent = currentHP / maxHP;
+            hpFillImage.fillAmount = hpPercent;
+        }
 
-    // Update Stamina fill bar
-    if (staminaFillImage != null)
-    {
-        float staminaPercent = currentStamina / maxStamina;
-        staminaFillImage.fillAmount = staminaPercent;
-        
-        // Optional: Change color based on stamina
-        if (staminaPercent > 0.5f)
-            staminaFillImage.color = Color.cyan;
-        else if (staminaPercent > 0.25f)
-            staminaFillImage.color = Color.yellow;
-        else
-            staminaFillImage.color = Color.red;
+        if (staminaFillImage != null)
+        {
+            float staminaPercent = currentStamina / maxStamina;
+            staminaFillImage.fillAmount = staminaPercent;
+        }
     }
-}
 
     void OnDeath()
     {
