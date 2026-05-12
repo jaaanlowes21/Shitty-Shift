@@ -11,6 +11,8 @@ public class PatrolRoom
     public Transform doorApproach2;
     public Door door2;
     public Transform interiorPoint;
+    [Tooltip("XZ size of the room rectangle. Set this to match the room's floor dimensions.")]
+    public Vector3 roomSize = new Vector3(6f, 3f, 6f);
     [HideInInspector] public float visitCooldownRemaining;
 }
 
@@ -308,7 +310,7 @@ public class BossEnemyPatrol : MonoBehaviour
                 }
             }
 
-            SetRandomTarget();
+            SetValidRandomTarget();
             agent.destination = targetPosition;
             RotateTowardsTarget();
             Debug.Log($"[Boss] Patrol | New waypoint {targetPosition:F1}");
@@ -481,10 +483,23 @@ public class BossEnemyPatrol : MonoBehaviour
                     currentRoom.visitCooldownRemaining = roomVisitCooldown;
 
                 currentRoom = null;
-                SetRandomTarget();
+                SetValidRandomTarget();
                 EnterPatrolMode();
             }
         }
+    }
+
+    private PatrolRoom GetRoomAtPosition(Vector3 pos)
+    {
+        if (patrolRooms == null) return null;
+        foreach (PatrolRoom room in patrolRooms)
+        {
+            if (room.interiorPoint == null) continue;
+            Bounds bounds = new Bounds(room.interiorPoint.position, room.roomSize);
+            if (bounds.Contains(new Vector3(pos.x, room.interiorPoint.position.y, pos.z)))
+                return room;
+        }
+        return null;
     }
 
     private PatrolRoom PickWeightedRoom()
@@ -540,7 +555,25 @@ public class BossEnemyPatrol : MonoBehaviour
     {
         Vector3 randomDirection = Random.insideUnitSphere * roamRadius;
         randomDirection.y = 0f;
-        targetPosition = roamCenter + randomDirection;
+        Vector3 candidate = roamCenter + randomDirection;
+        candidate.y = transform.position.y;
+
+        if (NavMesh.SamplePosition(candidate, out NavMeshHit hit, roamRadius, NavMesh.AllAreas))
+            targetPosition = hit.position;
+        else
+            targetPosition = transform.position;
+    }
+
+    private void SetValidRandomTarget()
+    {
+        const int maxAttempts = 10;
+        for (int i = 0; i < maxAttempts; i++)
+        {
+            SetRandomTarget();
+            if (GetRoomAtPosition(targetPosition) == null)
+                return;
+        }
+        targetPosition = roamCenter;
         targetPosition.y = transform.position.y;
     }
 
@@ -581,5 +614,15 @@ public class BossEnemyPatrol : MonoBehaviour
 
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, patrolAttackRadius);
+
+        if (patrolRooms == null) return;
+        foreach (PatrolRoom room in patrolRooms)
+        {
+            if (room.interiorPoint == null) continue;
+            Gizmos.color = new Color(1f, 0.5f, 0f, 0.15f);
+            Gizmos.DrawCube(room.interiorPoint.position, room.roomSize);
+            Gizmos.color = new Color(1f, 0.5f, 0f, 1f);
+            Gizmos.DrawWireCube(room.interiorPoint.position, room.roomSize);
+        }
     }
 }
