@@ -496,7 +496,7 @@ public class PlayerMovement : MonoBehaviour
             {
                 if (behaviour is IInteractable interactable)
                 {
-                    float dist = Vector3.Distance(transform.position, behaviour.transform.position);
+                    float dist = hit.distance;
                     
                     if (dist <= interactable.interactionRadius)
                     {
@@ -514,7 +514,7 @@ public class PlayerMovement : MonoBehaviour
             {
                 if (behaviour is IInteractable interactable)
                 {
-                    float dist = Vector3.Distance(transform.position, behaviour.transform.position);
+                    float dist = hit.distance;
                     
                     if (dist <= interactable.interactionRadius)
                     {

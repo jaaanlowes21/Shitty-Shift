@@ -2295,6 +2295,12 @@ MonoBehaviour:
   startOpen: 0
   axis: 2
   isClosedDoor: 0
+  requireRaycastAim: 0
+  raycastSource: {fileID: 0}
+  preferMainCamera: 1
+  raycastInteractionDistance: 3.5
+  raycastDoorColliders: []
+  drawRaycastDebug: 0
   autoClose: 1
   autoCloseDelay: 5
   openSound: {fileID: 8300000, guid: 5d433d618799a194e81650f9baf13fbf, type: 3}
@@ -3879,6 +3885,12 @@ MonoBehaviour:
   startOpen: 0
   axis: 1
   isClosedDoor: 0
+  requireRaycastAim: 0
+  raycastSource: {fileID: 0}
+  preferMainCamera: 1
+  raycastInteractionDistance: 3.5
+  raycastDoorColliders: []
+  drawRaycastDebug: 0
   autoClose: 1
   autoCloseDelay: 3
   openSound: {fileID: 8300000, guid: 5d433d618799a194e81650f9baf13fbf, type: 3}
@@ -5517,6 +5529,12 @@ MonoBehaviour:
   startOpen: 0
   axis: 2
   isClosedDoor: 0
+  requireRaycastAim: 0
+  raycastSource: {fileID: 0}
+  preferMainCamera: 1
+  raycastInteractionDistance: 3.5
+  raycastDoorColliders: []
+  drawRaycastDebug: 0
   autoClose: 1
   autoCloseDelay: 5
   openSound: {fileID: 8300000, guid: 5d433d618799a194e81650f9baf13fbf, type: 3}
@@ -6416,6 +6434,12 @@ MonoBehaviour:
   startOpen: 0
   axis: 2
   isClosedDoor: 0
+  requireRaycastAim: 0
+  raycastSource: {fileID: 0}
+  preferMainCamera: 1
+  raycastInteractionDistance: 3.5
+  raycastDoorColliders: []
+  drawRaycastDebug: 0
   autoClose: 1
   autoCloseDelay: 5
   openSound: {fileID: 8300000, guid: 5d433d618799a194e81650f9baf13fbf, type: 3}
@@ -7397,6 +7421,12 @@ MonoBehaviour:
   startOpen: 0
   axis: 2
   isClosedDoor: 0
+  requireRaycastAim: 0
+  raycastSource: {fileID: 0}
+  preferMainCamera: 1
+  raycastInteractionDistance: 3.5
+  raycastDoorColliders: []
+  drawRaycastDebug: 0
   autoClose: 1
   autoCloseDelay: 5
   openSound: {fileID: 8300000, guid: 5d433d618799a194e81650f9baf13fbf, type: 3}
@@ -14382,6 +14412,12 @@ MonoBehaviour:
   startOpen: 0
   axis: 1
   isClosedDoor: 0
+  requireRaycastAim: 0
+  raycastSource: {fileID: 0}
+  preferMainCamera: 1
+  raycastInteractionDistance: 3.5
+  raycastDoorColliders: []
+  drawRaycastDebug: 0
   autoClose: 1
   autoCloseDelay: 3
   openSound: {fileID: 8300000, guid: 5d433d618799a194e81650f9baf13fbf, type: 3}
@@ -16299,7 +16335,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1280818410
 RectTransform:
   m_ObjectHideFlags: 0
@@ -18754,6 +18790,12 @@ MonoBehaviour:
   startOpen: 0
   axis: 2
   isClosedDoor: 1
+  requireRaycastAim: 0
+  raycastSource: {fileID: 0}
+  preferMainCamera: 1
+  raycastInteractionDistance: 3.5
+  raycastDoorColliders: []
+  drawRaycastDebug: 0
   autoClose: 1
   autoCloseDelay: 3
   openSound: {fileID: 0}
@@ -20044,6 +20086,12 @@ MonoBehaviour:
   startOpen: 0
   axis: 1
   isClosedDoor: 0
+  requireRaycastAim: 0
+  raycastSource: {fileID: 0}
+  preferMainCamera: 1
+  raycastInteractionDistance: 3.5
+  raycastDoorColliders: []
+  drawRaycastDebug: 0
   autoClose: 1
   autoCloseDelay: 3
   openSound: {fileID: 8300000, guid: 5d433d618799a194e81650f9baf13fbf, type: 3}
@@ -24737,6 +24785,12 @@ MonoBehaviour:
   startOpen: 0
   axis: 2
   isClosedDoor: 0
+  requireRaycastAim: 0
+  raycastSource: {fileID: 0}
+  preferMainCamera: 1
+  raycastInteractionDistance: 3.5
+  raycastDoorColliders: []
+  drawRaycastDebug: 0
   autoClose: 1
   autoCloseDelay: 5
   openSound: {fileID: 8300000, guid: 5d433d618799a194e81650f9baf13fbf, type: 3}
@@ -25777,6 +25831,12 @@ MonoBehaviour:
   startOpen: 0
   axis: 2
   isClosedDoor: 0
+  requireRaycastAim: 0
+  raycastSource: {fileID: 0}
+  preferMainCamera: 1
+  raycastInteractionDistance: 3.5
+  raycastDoorColliders: []
+  drawRaycastDebug: 0
   autoClose: 1
   autoCloseDelay: 5
   openSound: {fileID: 8300000, guid: 5d433d618799a194e81650f9baf13fbf, type: 3}
@@ -45486,6 +45546,12 @@ MonoBehaviour:
   startOpen: 0
   axis: 1
   isClosedDoor: 0
+  requireRaycastAim: 0
+  raycastSource: {fileID: 0}
+  preferMainCamera: 1
+  raycastInteractionDistance: 3.5
+  raycastDoorColliders: []
+  drawRaycastDebug: 0
   autoClose: 1
   autoCloseDelay: 3
   openSound: {fileID: 8300000, guid: 5d433d618799a194e81650f9baf13fbf, type: 3}
@@ -57756,6 +57822,12 @@ MonoBehaviour:
   startOpen: 0
   axis: 2
   isClosedDoor: 1
+  requireRaycastAim: 0
+  raycastSource: {fileID: 0}
+  preferMainCamera: 1
+  raycastInteractionDistance: 3.5
+  raycastDoorColliders: []
+  drawRaycastDebug: 0
   autoClose: 1
   autoCloseDelay: 3
   openSound: {fileID: 0}

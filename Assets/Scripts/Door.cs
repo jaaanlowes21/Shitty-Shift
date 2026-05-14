@@ -14,6 +14,23 @@ public class Door : InteractableBase
     [Header("Closed Door")]
     public bool isClosedDoor = false;
 
+    [Header("Raycast Aim")]
+    [Tooltip("If enabled, radius interaction will only work when the player is actually aiming at this door.")]
+    public bool requireRaycastAim = false;
+
+    [Tooltip("Optional ray origin. Assign the FPS camera if this door must be opened by looking directly at it.")]
+    public Transform raycastSource;
+
+    [Tooltip("Use Camera.main before falling back to the player's interact source.")]
+    public bool preferMainCamera = true;
+
+    public float raycastInteractionDistance = 3.5f;
+
+    [Tooltip("Optional specific colliders that count as this door. Leave empty to use this object's child colliders.")]
+    public Collider[] raycastDoorColliders;
+
+    public bool drawRaycastDebug = false;
+
     [Header("Auto Close")]
     public bool autoClose = true;
     public float autoCloseDelay = 3f;
@@ -105,6 +122,9 @@ public class Door : InteractableBase
 
     public override void Interact(PlayerMovement player)
     {
+        if (requireRaycastAim && !IsAimingAtDoor(player))
+            return;
+
         LockedKeyDoor lockedDoor = GetComponent<LockedKeyDoor>();
 
         if (lockedDoor != null && !lockedDoor.IsUnlocked)
@@ -199,5 +219,70 @@ public class Door : InteractableBase
             return;
 
         audioSource.PlayOneShot(clip, volume);
+    }
+
+    private bool IsAimingAtDoor(PlayerMovement player)
+    {
+        Transform source = GetRaycastSource(player);
+        if (source == null)
+            return false;
+
+        if (drawRaycastDebug)
+            Debug.DrawRay(source.position, source.forward * raycastInteractionDistance, Color.green, 0.1f);
+
+        RaycastHit[] hits = Physics.RaycastAll(
+            source.position,
+            source.forward,
+            raycastInteractionDistance,
+            Physics.DefaultRaycastLayers,
+            QueryTriggerInteraction.Ignore
+        );
+
+        if (hits == null || hits.Length == 0)
+            return false;
+
+        foreach (RaycastHit hit in hits)
+        {
+            if (IsDoorCollider(hit.collider))
+                return true;
+        }
+
+        return false;
+    }
+
+    private Transform GetRaycastSource(PlayerMovement player)
+    {
+        if (raycastSource != null)
+            return raycastSource;
+
+        if (preferMainCamera && Camera.main != null)
+            return Camera.main.transform;
+
+        if (player != null && player.interactSource != null)
+            return player.interactSource;
+
+        return player != null ? player.transform : transform;
+    }
+
+    private bool IsDoorCollider(Collider hitCollider)
+    {
+        if (hitCollider == null)
+            return false;
+
+        if (raycastDoorColliders != null && raycastDoorColliders.Length > 0)
+        {
+            foreach (Collider doorCollider in raycastDoorColliders)
+            {
+                if (doorCollider == null)
+                    continue;
+
+                if (hitCollider == doorCollider || hitCollider.transform.IsChildOf(doorCollider.transform))
+                    return true;
+            }
+
+            return false;
+        }
+
+        return hitCollider.transform == transform || hitCollider.transform.IsChildOf(transform);
     }
 }

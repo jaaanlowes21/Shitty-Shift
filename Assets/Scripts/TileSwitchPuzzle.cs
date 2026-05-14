@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Events;
 using TMPro;
 
 
@@ -40,10 +41,26 @@ public class TileSwitchPuzzle : MonoBehaviour
     [Tooltip("TMP text showing puzzle progress and feedback to the player.")]
     public TextMeshProUGUI statusText;
 
+    [Header("Feedback Text")]
+    public string startMessage = "Press the colors in the correct order.";
+    public string correctStepMessage = "Correct color. Keep going.";
+    public string wrongStepMessage = "Wrong color. The sequence reset.";
+    public string solvedMessage = "Color sequence solved.";
+    public float wrongResetDelay = 0.6f;
+
+    [Header("Objective Guide")]
+    public bool updateObjectiveGuide = true;
+    public string startingObjective = "Complete the color sequence.";
+    public string solvedObjective = "Return to the security terminal.";
+
     [Header("Audio")]
     public AudioClip correctTileSound;
     public AudioClip wrongTileSound;
     public AudioClip solvedSound;
+
+    [Header("Completion")]
+    [Tooltip("Invoked once after the tile switch puzzle is solved.")]
+    public UnityEvent onPuzzleSolved;
 
     private int currentStep = 0;
     private bool isSolved = false;
@@ -61,7 +78,10 @@ public class TileSwitchPuzzle : MonoBehaviour
     {
         HideCluePanel();
         HideClueObject();
-        UpdateStatus($"Step 1 of {correctSequence.Length} — press the correct tile.");
+        UpdateStatus(startMessage);
+
+        if (updateObjectiveGuide)
+            ObjectiveManager.Instance?.SetObjective(startingObjective);
     }
 
     // ── Called by TileSwitchTile ─────────────────────────────
@@ -105,7 +125,7 @@ public class TileSwitchPuzzle : MonoBehaviour
         }
         else
         {
-            UpdateStatus($"Step {currentStep + 1} of {correctSequence.Length} — keep going!");
+            UpdateStatus($"{correctStepMessage} Step {currentStep + 1} of {correctSequence.Length}.");
         }
     }
 
@@ -126,7 +146,7 @@ public class TileSwitchPuzzle : MonoBehaviour
     {
         isSolved = true;
         PlaySound(solvedSound);
-        UpdateStatus("Puzzle solved! A note has appeared.");
+        UpdateStatus(solvedMessage);
 
         yield return new WaitForSeconds(1f);
 
@@ -138,15 +158,20 @@ public class TileSwitchPuzzle : MonoBehaviour
         {
             ShowCluePanel();
         }
+
+        onPuzzleSolved?.Invoke();
+
+        if (updateObjectiveGuide)
+            ObjectiveManager.Instance?.SetObjective(solvedObjective);
     }
 
     // ── Reset ────────────────────────────────────────────────
 
     private IEnumerator ResetAllTiles()
     {
-        UpdateStatus("Wrong tile! Sequence reset — start again.");
+        UpdateStatus(wrongStepMessage);
 
-        yield return new WaitForSeconds(0.6f);
+        yield return new WaitForSeconds(wrongResetDelay);
 
         foreach (TileSwitchTile tile in tiles)
         {
@@ -155,7 +180,7 @@ public class TileSwitchPuzzle : MonoBehaviour
         }
 
         currentStep = 0;
-        UpdateStatus($"Step 1 of {correctSequence.Length} — press the correct tile.");
+        UpdateStatus(startMessage);
     }
 
     // ── Clue Panel ───────────────────────────────────────────
