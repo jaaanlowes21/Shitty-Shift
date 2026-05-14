@@ -20,7 +20,7 @@ RenderSettings:
   m_FogDensity: 0.01
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
-  m_AmbientSkyColor: {r: 1, g: 1, b: 1, a: 1}
+  m_AmbientSkyColor: {r: 0, g: 0, b: 0, a: 1}
   m_AmbientEquatorColor: {r: 0.114, g: 0.125, b: 0.133, a: 1}
   m_AmbientGroundColor: {r: 0.047, g: 0.043, b: 0.035, a: 1}
   m_AmbientIntensity: 1
@@ -19202,7 +19202,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!33 &888250865
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -20222,14 +20222,14 @@ MonoBehaviour:
   unlockedLines:
   - 'SECURITY TERMINAL
 
-    
+
 
     Final exit keypad changed after lockdown.
 
     Current
     override code was recorded in AVR Room 101.
 
-    
+
 
     Archive file: EXIT_DRILL_FINAL.mp4
 
@@ -27931,7 +27931,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 3d52865866aa8cd4997ede20a6818ea9, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -0.06
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 3d52865866aa8cd4997ede20a6818ea9, type: 3}
       propertyPath: m_LocalPosition.z
@@ -30815,7 +30815,7 @@ Transform:
   m_GameObject: {fileID: 1447201568}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: 0.7162427, z: -0, w: 0.69785136}
-  m_LocalPosition: {x: -162.45, y: 4.31, z: 37.34}
+  m_LocalPosition: {x: -162.45, y: 5.93, z: 37.34}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
