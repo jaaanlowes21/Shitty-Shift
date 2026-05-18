@@ -58,6 +58,7 @@ public class PlayerMovement : MonoBehaviour
     public float interactDistance = 3f;
     public LayerMask interactMask = ~0;
     public Transform interactSource;
+    public LayerMask visibilityBlockMask = ~0;
 
     [Header("HP")]
     public float maxHP = 100f;
@@ -72,6 +73,12 @@ public class PlayerMovement : MonoBehaviour
     [Range(0f, 1f)] public float vignetteStartNormalized = 0.4f;
     [Range(0f, 1f)] public float vignetteMaxAlpha = 0.65f;
     public float vignetteFadeSpeed = 6f;
+
+    private Outline currentOutline;
+
+    [Header("Animation")]
+    public Animator animator;
+    private bool isDancing = false;
 
     private CharacterController controller;
     private AudioSource audioSource;
@@ -147,6 +154,23 @@ public class PlayerMovement : MonoBehaviour
     {
         controller = GetComponent<CharacterController>();
 
+        if (animator != null)
+        {
+            animator.applyRootMotion = false;
+        
+            // Store the initial local position and force it to zero
+            Vector3 pos = animator.transform.localPosition;
+            pos.y = 0f;
+            animator.transform.localPosition = pos;
+        
+            // If the animator is not a child, make sure it stays at the player's position
+            if (animator.transform != transform)
+            {
+                animator.transform.SetParent(transform);
+                animator.transform.localPosition = Vector3.zero;
+            }
+        }
+
         UpdateHPStageIndicators();
 
         Cursor.lockState = CursorLockMode.Locked;
@@ -166,6 +190,11 @@ public class PlayerMovement : MonoBehaviour
             Color c = staminaVignette.color;
             c.a = 0f;
             staminaVignette.color = c;
+        }
+
+        if (visibilityBlockMask.value == ~0) 
+        {
+            visibilityBlockMask = ~LayerMask.GetMask("Interactable");
         }
     }
 
@@ -215,6 +244,8 @@ public class PlayerMovement : MonoBehaviour
         UpdateInteractionUI();
         UpdateStatsUI();
         UpdateStaminaVignette();
+        HandleDance();
+        UpdateAnimations();
     }
 
     void HandleInteraction()
@@ -340,19 +371,28 @@ public class PlayerMovement : MonoBehaviour
 
     void Jump()
     {
-        if (isHidden || isReading) return;
+        if (isHidden || isReading || isDancing)
+            return;
 
         if (isGrounded && !isCrouching)
         {
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+
+            if (animator != null)
+                animator.SetBool("IsJumping", true);
+
             PlaySound(jumpSound);
         }
     }
-
     void HandleLanding(bool prevGrounded)
     {
         if (!prevGrounded && isGrounded)
+        {
             PlaySound(landSound);
+
+            if (animator != null)
+                animator.SetBool("IsJumping", false);
+        }
     }
 
     void HandleFootstepAudio()
@@ -391,24 +431,44 @@ public class PlayerMovement : MonoBehaviour
     }
 
     void HandleCrouch()
+{
+    bool crouchPressed = false;
+
+    if (inputActions != null)
+        crouchPressed = inputActions.Player.Crouch.IsPressed();
+
+    if (Keyboard.current != null && Keyboard.current.leftCtrlKey.isPressed)
+        crouchPressed = true;
+
+    bool isMoving = moveInput.sqrMagnitude > 0.01f;
+
+    // Can only ENTER crouch while idle
+    if (!isMoving)
     {
-        bool crouchPressed = false;
-
-        if (inputActions != null)
-            crouchPressed = inputActions.Player.Crouch.IsPressed();
-
-        if (Keyboard.current != null && Keyboard.current.leftCtrlKey.isPressed)
-            crouchPressed = true;
-
-        isCrouching = crouchPressed && isGrounded && !isHidden && !isReading;
-
-        float targetHeight = isCrouching ? crouchHeight : standingHeight;
-        controller.height = Mathf.Lerp(controller.height, targetHeight, Time.deltaTime * crouchTransitionSpeed);
-
-        Vector3 center = controller.center;
-        center.y = 0f;
-        controller.center = center;
+        isCrouching = crouchPressed &&
+                      isGrounded &&
+                      !isHidden &&
+                      !isReading;
     }
+
+    // Exit crouch immediately if key released
+    if (!crouchPressed)
+    {
+        isCrouching = false;
+    }
+
+    float targetHeight = isCrouching ? crouchHeight : standingHeight;
+
+    controller.height = Mathf.Lerp(
+        controller.height,
+        targetHeight,
+        Time.deltaTime * crouchTransitionSpeed
+    );
+
+    Vector3 center = controller.center;
+    center.y = 0f;
+    controller.center = center;
+}
 
     void HandleGravity()
     {
@@ -433,99 +493,118 @@ public class PlayerMovement : MonoBehaviour
     }
 
     void DetectInteractable()
+{
+    currentInteractable = null;
+
+    if (isHidden)
+        return;
+
+    // Just use the direct raycast approach for interaction
+    IInteractable raycastHit = GetInteractableFromRaycast();
+    if (raycastHit != null)
     {
-        currentInteractable = null;
-
-        if (isHidden)
-            return;
-
-        // Priority 1: Direct raycast (most accurate for doors)
-        IInteractable raycastHit = GetInteractableFromRaycast();
-        if (raycastHit != null)
-        {
-            currentInteractable = raycastHit;
-            return;
-        }
-
-        // Priority 2: Sphere overlap with angle checking
-        Collider[] hits = Physics.OverlapSphere(transform.position, interactDistance, interactMask);
-
-        float bestScore = float.MinValue;
-        IInteractable bestInteractable = null;
-
-        foreach (Collider col in hits)
-        {
-            MonoBehaviour[] behaviours = col.GetComponentsInParent<MonoBehaviour>();
-
-            foreach (MonoBehaviour behaviour in behaviours)
-            {
-                if (behaviour is IInteractable interactable)
-                {
-                    Vector3 directionToObject = (behaviour.transform.position - transform.position).normalized;
-                    float distance = Vector3.Distance(transform.position, behaviour.transform.position);
-                    float dotProduct = Vector3.Dot(transform.forward, directionToObject);
-                    
-                    float angleScore = dotProduct;
-                    float distanceScore = 1f - (distance / interactDistance);
-                    float totalScore = (angleScore * 0.7f) + (distanceScore * 0.3f);
-                    
-                    if (distance <= interactable.interactionRadius && totalScore > bestScore)
-                    {
-                        bestScore = totalScore;
-                        bestInteractable = interactable;
-                    }
-                }
-            }
-        }
-
-        currentInteractable = bestInteractable;
+        currentInteractable = raycastHit;
+        return;
     }
 
-    private IInteractable GetInteractableFromRaycast()
-    {
-        Transform source = interactSource != null ? interactSource : transform;
-        
-        RaycastHit hit;
-        float sphereRadius = 0.3f;
-        
-        if (Physics.SphereCast(source.position, sphereRadius, source.forward, out hit, interactDistance, interactMask))
-        {
-            MonoBehaviour[] behaviours = hit.collider.GetComponentsInParent<MonoBehaviour>();
-            
-            foreach (MonoBehaviour behaviour in behaviours)
-            {
-                if (behaviour is IInteractable interactable)
-                {
-                    float dist = hit.distance;
-                    
-                    if (dist <= interactable.interactionRadius)
-                    {
-                        return interactable;
-                    }
-                }
-            }
-        }
-        
-        if (Physics.Raycast(source.position, source.forward, out hit, interactDistance, interactMask))
-        {
-            MonoBehaviour[] behaviours = hit.collider.GetComponentsInParent<MonoBehaviour>();
-            
-            foreach (MonoBehaviour behaviour in behaviours)
-            {
-                if (behaviour is IInteractable interactable)
-                {
-                    float dist = hit.distance;
-                    
-                    if (dist <= interactable.interactionRadius)
-                    {
-                        return interactable;
-                    }
-                }
-            }
-        }
+    // Fallback to sphere overlap for nearby objects
+    Collider[] hits = Physics.OverlapSphere(transform.position, interactDistance, interactMask);
 
-        return null;
+    float closestDistance = Mathf.Infinity;
+    IInteractable closestInteractable = null;
+
+    foreach (Collider col in hits)
+    {
+        MonoBehaviour[] behaviours = col.GetComponentsInParent<MonoBehaviour>();
+
+        foreach (MonoBehaviour behaviour in behaviours)
+        {
+            if (behaviour is IInteractable interactable)
+            {
+                float dist = Vector3.Distance(transform.position, behaviour.transform.position);
+                
+                if (dist <= interactable.interactionRadius && dist < closestDistance)
+                {
+                    closestDistance = dist;
+                    closestInteractable = interactable;
+                }
+            }
+        }
     }
+
+    currentInteractable = closestInteractable;
+}
+
+private IInteractable GetInteractableFromRaycast()
+{
+    Transform source = interactSource != null ? interactSource : transform;
+    
+    RaycastHit[] hits = Physics.RaycastAll(source.position, source.forward, interactDistance, interactMask);
+    
+    // Sort by distance
+    System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+    
+    foreach (RaycastHit hit in hits)
+    {
+        MonoBehaviour[] behaviours = hit.collider.GetComponentsInParent<MonoBehaviour>();
+        
+        foreach (MonoBehaviour behaviour in behaviours)
+        {
+            if (behaviour is IInteractable interactable)
+            {
+                if (hit.distance <= interactable.interactionRadius)
+                {
+                    return interactable;
+                }
+            }
+        }
+        
+        // If we hit something non-interactable (wall), stop
+        if (hit.collider.GetComponentInParent<IInteractable>() == null)
+        {
+            return null;
+        }
+    }
+    
+    return null;
+}
+
+private void EnableOutline(IInteractable interactable)
+{
+    MonoBehaviour mb = interactable as MonoBehaviour;
+    if (mb != null)
+    {
+        Outline outline = mb.GetComponentInChildren<Outline>(true);
+        if (outline == null)
+            outline = mb.GetComponent<Outline>();
+        
+        if (outline != null)
+        {
+            outline.enabled = true;
+            currentOutline = outline;
+        }
+    }
+}
+
+
+
+// Add this new method to check line of sight to an object
+private bool HasLineOfSightToObject(Vector3 targetPosition)
+{
+    Transform source = interactSource != null ? interactSource : transform;
+    Vector3 direction = targetPosition - source.position;
+    float distance = direction.magnitude;
+    
+    // Raycast to check if something is blocking the view
+    if (Physics.Raycast(source.position, direction.normalized, distance, interactMask))
+    {
+        // The raycast hit something - check if it's the same object we're looking at
+        // We need to see if the hit object is related to our interactable
+        return false; // Something is blocking
+    }
+    
+    return true; // Clear line of sight
+}
 
     public void EnterHide(HideableObject hideable)
     {
@@ -818,6 +897,14 @@ public class PlayerMovement : MonoBehaviour
     void OnDeath()
     {
         Debug.Log("Player died.");
+
+        if (animator != null)
+        {   
+            animator.SetBool("IsDead", true);
+        }
+
+        currentMove = Vector3.zero;
+        moveInput = Vector2.zero;
     }
 
     private void OnDrawGizmosSelected()
@@ -831,5 +918,62 @@ public class PlayerMovement : MonoBehaviour
         Transform source = interactSource != null ? interactSource : transform;
         Gizmos.color = Color.yellow;
         Gizmos.DrawRay(source.position, source.forward * interactDistance);
+    }
+
+    void HandleDance()
+    {
+        if (animator == null)
+            return;
+
+        bool isMoving = moveInput.sqrMagnitude > 0.01f;
+
+        bool canDance =
+            isGrounded &&
+            !isMoving &&
+            !isRunning &&
+            !isCrouching &&
+            !isHidden &&
+            !isReading;
+
+        if (Keyboard.current != null &&
+            Keyboard.current.bKey.wasPressedThisFrame &&
+            canDance)
+        {
+            isDancing = !isDancing;
+            animator.SetBool("IsDancing", isDancing);
+        }
+
+        // stop dancing automatically
+        if (!canDance)
+        {
+            isDancing = false;
+            animator.SetBool("IsDancing", false);
+        }
+    }
+
+    void UpdateAnimations()
+    {
+        if (animator == null)
+            return;
+
+        bool isMoving = moveInput.sqrMagnitude > 0.01f;
+
+        bool walking = isMoving && !isRunning && !isCrouching;
+        bool crouchWalking = isMoving && isCrouching;
+
+        animator.SetBool("IsWalking", walking);
+        animator.SetBool("IsRunning", isRunning && !isCrouching);
+        animator.SetBool("IsCrouching", isCrouching);
+        animator.SetBool("IsCrouchWalking", crouchWalking);
+        animator.SetBool("IsDead", currentHP <= 0f);
+        animator.SetFloat("MoveSpeed", currentMove.magnitude);
+
+        // FORCE model to stay at local position (fixes floating model)
+        if (animator.transform.localPosition.y != 0f)
+        {
+            Vector3 pos = animator.transform.localPosition;
+            pos.y = 0f;
+            animator.transform.localPosition = pos;
+        }
     }
 }

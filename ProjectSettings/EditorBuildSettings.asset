@@ -14,12 +14,12 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/SecondFloorFinal.unity
     guid: c2f8697f11d13d7469974777f3517293
-  - enabled: 0
-    path: Assets/Scenes/SecondFloor.unity
-    guid: 0aa721786b63386498eb84521fc8084c
   - enabled: 1
     path: Assets/Scenes/FinalFloorScene.unity
     guid: 344ff083a6f28184894e529c30d22ddf
+  - enabled: 1
+    path: Assets/Scenes/EndGame.unity
+    guid: 84c0a7a46a4ceae41be86ec3832518cd
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 289c1b55c9541489481df5cc06664110, type: 3}
   m_UseUCBPForAssetBundles: 0

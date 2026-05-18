@@ -73,6 +73,16 @@ public class MainMenuButtonActions : MonoBehaviour
 
         yield return FadeGroups(mainMenuFadeObjects, 1f, 0f, false);
 
+        // Start the timer when beginning the game
+        if (GameTimer.Instance != null)
+        {
+            GameTimer.Instance.StartTimer();
+        }
+        else
+        {
+            Debug.Log("[MainMenu] GameTimer not found, it will be created in the next scene.");
+        }
+
         SceneManager.LoadScene(playSceneName);
     }
 

@@ -76,6 +76,11 @@ public class PoopEnemy : MonoBehaviour
     [Header("Sink/Rise Settings")]
     public float sinkDepth = 1.5f;
 
+    [Header("Animations")]
+    public Animator animator;
+    private bool isMoving = false;
+    private bool isScaring = false;
+
     private PlayerMovement player;
     private EnemyState currentState;
     private EnemyState chaseStartedFromState;
@@ -118,6 +123,13 @@ public class PoopEnemy : MonoBehaviour
         sinkStartScale = originalScale;
         sinkTargetScale = new Vector3(originalScale.x, 0.1f, originalScale.z);
 
+        // Auto-find animator if not assigned
+        if (animator == null)
+            animator = GetComponent<Animator>();
+        
+        if (animator == null)
+            animator = GetComponentInChildren<Animator>();
+
         if (mainWaypoints.Length > 0)
         {
             currentWaypointIndex = 0;
@@ -135,21 +147,22 @@ public class PoopEnemy : MonoBehaviour
             return;
 
         if (!hasStarted)
-    {
-        startupDelay -= Time.deltaTime;
-        if (startupDelay <= 0f)
         {
-            hasStarted = true;
-            EnterWaypointPatrol();
-            Debug.Log("[Poop] → Startup complete, beginning patrol!");
+            startupDelay -= Time.deltaTime;
+            if (startupDelay <= 0f)
+            {
+                hasStarted = true;
+                EnterWaypointPatrol();
+                Debug.Log("[Poop] → Startup complete, beginning patrol!");
+            }
+            return;
         }
-        return; // Don't do anything else during startup delay
-    }
 
-    if (isOnCooldown)
-        UpdateCooldown();
+        if (isOnCooldown)
+            UpdateCooldown();
 
-    HandleSinkRise();
+        HandleSinkRise();
+        UpdateAnimations();
 
         switch (currentState)
         {
@@ -189,6 +202,25 @@ public class PoopEnemy : MonoBehaviour
         }
     }
 
+    private void UpdateAnimations()
+    {
+        if (animator == null) return;
+
+        // Determine if moving
+        isMoving = (currentState == EnemyState.WaypointPatrol || 
+                    currentState == EnemyState.Chase || 
+                    currentState == EnemyState.RoomChase ||
+                    currentState == EnemyState.Attack ||
+                    currentState == EnemyState.RoomAttack);
+
+        // Determine if scaring
+        isScaring = (currentState == EnemyState.Jumpscare);
+
+        // Apply to animator
+        animator.SetBool("IsMoving", isMoving);
+        animator.SetBool("IsScaring", isScaring);
+    }
+
     private void HandleSinkRise()
     {
         if (isSinking)
@@ -218,53 +250,43 @@ public class PoopEnemy : MonoBehaviour
     }
 
     private void OnSinkComplete()
-{
-    // At this point the enemy is fully shrunk down
-    
-    if (currentState == EnemyState.RoomTeleportDown)
     {
-        // Teleport to random room waypoint
-        if (roomWaypoints.Length > 0)
+        if (currentState == EnemyState.RoomTeleportDown)
         {
-            currentRoomWaypoint = roomWaypoints[Random.Range(0, roomWaypoints.Length)];
-            transform.position = currentRoomWaypoint.position;
-        }
+            if (roomWaypoints.Length > 0)
+            {
+                currentRoomWaypoint = roomWaypoints[Random.Range(0, roomWaypoints.Length)];
+                transform.position = currentRoomWaypoint.position;
+            }
 
-        // Start rising at the new location
-        StartRising();
-        currentState = EnemyState.RoomTeleportUp;
-    }
-    else if (currentState == EnemyState.ReturnToPatrol)
-    {
-        // Teleport to first waypoint
-        currentWaypointIndex = 0;
-        waypointsVisited = 0;
-        
-        if (mainWaypoints.Length > 0)
-        {
-            transform.position = mainWaypoints[0].position;
+            StartRising();
+            currentState = EnemyState.RoomTeleportUp;
         }
-        
-        // Start rising at the new location
-        StartRising();
-        // Keep state as ReturnToPatrol for OnRiseComplete
+        else if (currentState == EnemyState.ReturnToPatrol)
+        {
+            currentWaypointIndex = 0;
+            waypointsVisited = 0;
+            
+            if (mainWaypoints.Length > 0)
+            {
+                transform.position = mainWaypoints[0].position;
+            }
+            
+            StartRising();
+        }
     }
-}
 
     private void OnRiseComplete()
-{
-    // At this point the enemy is fully grown at the new location
-    
-    if (currentState == EnemyState.RoomTeleportUp)
     {
-        EnterRoomSearch();
+        if (currentState == EnemyState.RoomTeleportUp)
+        {
+            EnterRoomSearch();
+        }
+        else if (currentState == EnemyState.ReturnToPatrol)
+        {
+            EnterWaypointPatrol();
+        }
     }
-    else if (currentState == EnemyState.ReturnToPatrol)
-    {
-        // Finished rising at waypoint, resume patrol
-        EnterWaypointPatrol();
-    }
-}
 
     private void StartSinking()
     {
@@ -417,18 +439,18 @@ public class PoopEnemy : MonoBehaviour
     }
 
     private void EnterConfusedState()
-{
-    if (player != null)
-        player.StopJumpscare();
+    {
+        if (player != null)
+            player.StopJumpscare();
 
-    currentState = EnemyState.Confused;
-    confusedTimer = confusedDelay; // Wait 3 seconds before sinking
-    MakeSolid();
+        currentState = EnemyState.Confused;
+        confusedTimer = confusedDelay;
+        MakeSolid();
 
-    AudioManager2.Instance?.PlayConfusedSound();
-    
-    Debug.Log($"[Poop] → Confused | Player escaped! Waiting {confusedDelay} seconds before sinking...");
-}
+        AudioManager2.Instance?.PlayConfusedSound();
+        
+        Debug.Log($"[Poop] → Confused | Player escaped! Waiting {confusedDelay} seconds before sinking...");
+    }
 
     private void ReturnToPatrol()
     {
@@ -742,22 +764,20 @@ public class PoopEnemy : MonoBehaviour
         RotateTowards(player.transform.position);
 
         if (jumpscareTimer <= 0f)
-            EnterConfusedState(); // After jumpscare, wait then sink
+            EnterConfusedState();
     }
 
     private void UpdateConfused()
-{
-    // Just wait, don't sink yet
-    confusedTimer -= Time.deltaTime;
-    
-    if (confusedTimer <= 0f)
     {
-        // NOW start sinking after the delay
-        Debug.Log("[Poop] → Confused | Done waiting, sinking now...");
-        StartSinking();
-        currentState = EnemyState.ReturnToPatrol; // So OnSinkComplete teleports to waypoint
+        confusedTimer -= Time.deltaTime;
+        
+        if (confusedTimer <= 0f)
+        {
+            Debug.Log("[Poop] → Confused | Done waiting, sinking now...");
+            StartSinking();
+            currentState = EnemyState.ReturnToPatrol;
+        }
     }
-}
 
     private bool CanDetectPlayer(float radius)
     {

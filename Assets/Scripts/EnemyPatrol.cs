@@ -63,6 +63,14 @@ public class MopPatrol : MonoBehaviour
     [Header("After Attack")]
     public float ignorePlayerAfterAttackTime = 5f;
 
+    [Header("Jaw Animation")]
+    public Transform jawPivot;
+    public float idleJawSpeed = 2f;      // Speed of jaw bobbing when idle/patrol
+    public float idleJawAngle = 15f;      // Max X angle when idle/patrol
+    public float chaseJawSpeed = 8f;      // Faster jaw bobbing when chasing
+    public float attackJawSpeed = 20f;    // Very fast Z rotation during attack/jumpscare
+    public float attackJawAngle = 15f;    // Max Z angle during attack/jumpscare
+
     private PlayerMovement player;
 
     private EnemyState currentState;
@@ -94,6 +102,10 @@ public class MopPatrol : MonoBehaviour
 
     private Coroutine patrolPauseCoroutine;
 
+    // Jaw animation variables
+    private float jawAnimationTimer = 0f;
+    private bool jawResetNeeded = false;
+
     private void Start()
     {
         player = FindFirstObjectByType<PlayerMovement>();
@@ -111,6 +123,10 @@ public class MopPatrol : MonoBehaviour
         hasShownDetectionHint = false;
         returningAfterAttack = false;
 
+        // Initialize jaw to 0
+        if (jawPivot != null)
+            jawPivot.localRotation = Quaternion.identity;
+
         EnterLookoutMode();
     }
 
@@ -124,6 +140,9 @@ public class MopPatrol : MonoBehaviour
 
         if (ignorePlayerTimer > 0f)
             ignorePlayerTimer -= Time.deltaTime;
+
+        // Update jaw animation
+        UpdateJawAnimation();
 
         switch (currentState)
         {
@@ -151,6 +170,71 @@ public class MopPatrol : MonoBehaviour
                 UpdateReturnToPattern();
                 break;
         }
+    }
+
+    private void UpdateJawAnimation()
+    {
+        if (jawPivot == null) return;
+
+        jawAnimationTimer += Time.deltaTime;
+
+        switch (currentState)
+        {
+            case EnemyState.Lookout:
+            case EnemyState.Patrol:
+            case EnemyState.ReturnToPattern:
+                // Idle/Patrol: Rotate X axis from 0 to 15 and back, smoothly
+                if (jawResetNeeded)
+                {
+                    // Smoothly return to idle animation
+                    Quaternion currentRot = jawPivot.localRotation;
+                    float targetX = Mathf.Sin(jawAnimationTimer * idleJawSpeed) * idleJawAngle;
+                    jawPivot.localRotation = Quaternion.Lerp(currentRot, Quaternion.Euler(targetX, 0f, 0f), Time.deltaTime * 5f);
+                    
+                    if (Quaternion.Angle(currentRot, Quaternion.Euler(targetX, 0f, 0f)) < 1f)
+                        jawResetNeeded = false;
+                }
+                else
+                {
+                    float xAngle = Mathf.Sin(jawAnimationTimer * idleJawSpeed) * idleJawAngle;
+                    jawPivot.localRotation = Quaternion.Euler(xAngle, 0f, 0f);
+                }
+                break;
+
+            case EnemyState.Chase:
+                // Chase: Faster X axis bobbing
+                if (jawResetNeeded)
+                {
+                    Quaternion currentRot = jawPivot.localRotation;
+                    float targetX = Mathf.Sin(jawAnimationTimer * chaseJawSpeed) * idleJawAngle;
+                    jawPivot.localRotation = Quaternion.Lerp(currentRot, Quaternion.Euler(targetX, 0f, 0f), Time.deltaTime * 10f);
+                    
+                    if (Quaternion.Angle(currentRot, Quaternion.Euler(targetX, 0f, 0f)) < 1f)
+                        jawResetNeeded = false;
+                }
+                else
+                {
+                    float xAngle = Mathf.Sin(jawAnimationTimer * chaseJawSpeed) * idleJawAngle;
+                    jawPivot.localRotation = Quaternion.Euler(xAngle, 0f, 0f);
+                }
+                break;
+
+            case EnemyState.Attack:
+            case EnemyState.Jumpscare:
+                // Attack/Jumpscare: X back to 0, Z goes from -15 to 15 very fast
+                float zAngle = Mathf.Sin(jawAnimationTimer * attackJawSpeed) * attackJawAngle;
+                jawPivot.localRotation = Quaternion.Euler(0f, 0f, zAngle);
+                jawResetNeeded = true; // Need to reset when going back to idle
+                break;
+        }
+    }
+
+    private void ResetJawAnimation()
+    {
+        jawAnimationTimer = 0f;
+        if (jawPivot != null)
+            jawPivot.localRotation = Quaternion.identity;
+        jawResetNeeded = false;
     }
 
     private void EnterLookoutMode()
@@ -209,31 +293,31 @@ public class MopPatrol : MonoBehaviour
     }
 
     private void EnterAttackMode()
-{
-    if (player == null)
     {
-        StartReturnToPattern();
-        return;
+        if (player == null)
+        {
+            StartReturnToPattern();
+            return;
+        }
+
+        AudioManager.Instance?.PlayMonsterAttackSound("Mop");
+
+        currentState = EnemyState.Attack;
+        attackTimer = 0f;
+        chargeTimer = 0f;
+
+        Vector3 forward = player.transform.forward;
+        forward.y = 0f;
+        forward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
+
+        attackTargetPosition = player.transform.position + forward * faceDistance;
+        attackTargetPosition.y = transform.position.y;
+
+        Vector3 directionFromPlayerToEnemy = (transform.position - player.transform.position).normalized;
+        attackTargetPosition += directionFromPlayerToEnemy * attackOffset;
+
+        RotateTowards(attackTargetPosition);
     }
-
-    AudioManager.Instance?.PlayMonsterAttackSound("Mop");
-
-    currentState = EnemyState.Attack;
-    attackTimer = 0f;
-    chargeTimer = 0f;
-
-    Vector3 forward = player.transform.forward;
-    forward.y = 0f;
-    forward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
-
-    attackTargetPosition = player.transform.position + forward * faceDistance;
-    attackTargetPosition.y = transform.position.y;
-
-    Vector3 directionFromPlayerToEnemy = (transform.position - player.transform.position).normalized;
-    attackTargetPosition += directionFromPlayerToEnemy * attackOffset;
-
-    RotateTowards(attackTargetPosition);
-}
 
     private void StartReturnToPattern()
     {
@@ -242,81 +326,83 @@ public class MopPatrol : MonoBehaviour
 
         currentState = EnemyState.ReturnToPattern;
         chargeTimer = 0f;
+        
+        // Reset jaw when returning
+        ResetJawAnimation();
     }
 
     private void UpdateLookout()
-{
-    if (player == null)
-        return;
-
-    if (ignorePlayerTimer > 0f)
-        return;
-
-    // ✅ Add check for hidden player
-    if (player.IsHidden)
-        return;
-
-    if (!IsPlayerInsideClassroom())
     {
-        float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
-
-        if (distanceToPlayer <= lookoutDetectionRadius)
-        {
-            hasSeenPlayerOnce = true;
-            introLookoutLocked = false;
-
-            if (!hasShownDetectionHint)
-            {
-                hasShownDetectionHint = true;
-                HintManager.Instance?.ShowHint("Is something there?");
-            }
-
-            EnterChaseMode(EnemyState.Lookout);
+        if (player == null)
             return;
+
+        if (ignorePlayerTimer > 0f)
+            return;
+
+        if (player.IsHidden)
+            return;
+
+        if (!IsPlayerInsideClassroom())
+        {
+            float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
+
+            if (distanceToPlayer <= lookoutDetectionRadius)
+            {
+                hasSeenPlayerOnce = true;
+                introLookoutLocked = false;
+
+                if (!hasShownDetectionHint)
+                {
+                    hasShownDetectionHint = true;
+                    HintManager.Instance?.ShowHint("Is something there?");
+                }
+
+                EnterChaseMode(EnemyState.Lookout);
+                return;
+            }
+        }
+
+        if (introLookoutLocked && !hasSeenPlayerOnce)
+            return;
+
+        lookoutTimer -= Time.deltaTime;
+
+        if (lookoutTimer <= 0f)
+        {
+            patrolEndCount = 0;
+            patrolEndsBeforeLookout = Random.Range(patrolEndsBeforeLookoutMin, patrolEndsBeforeLookoutMax + 1);
+            EnterPatrolMode();
         }
     }
 
-    if (introLookoutLocked && !hasSeenPlayerOnce)
-        return;
-
-    lookoutTimer -= Time.deltaTime;
-
-    if (lookoutTimer <= 0f)
-    {
-        patrolEndCount = 0;
-        patrolEndsBeforeLookout = Random.Range(patrolEndsBeforeLookoutMin, patrolEndsBeforeLookoutMax + 1);
-        EnterPatrolMode();
-    }
-}
-
     private void UpdatePatrol()
-{
-    if (ignorePlayerTimer > 0f)
     {
-        EnterLookoutMode();
-        return;
+        if (ignorePlayerTimer > 0f)
+        {
+            EnterLookoutMode();
+            return;
+        }
+
+        if (player != null && !player.IsHidden && CanSeePlayer(patrolDetectionRadius))
+        {
+            EnterChaseMode(EnemyState.Patrol);
+            return;
+        }
+
+        Vector3 current = transform.position;
+        Vector3 next = Vector3.MoveTowards(current, targetPosition, patrolSpeed * Time.deltaTime);
+        transform.position = next;
+
+        SmoothRotateTowards(targetPosition);
+
+        if (Vector3.Distance(transform.position, targetPosition) <= 0.05f)
+        {
+            transform.position = targetPosition;
+
+            if (patrolPauseCoroutine == null)
+                patrolPauseCoroutine = StartCoroutine(PatrolTurnRoutine());
+        }
     }
-
-    if (player != null && !player.IsHidden && CanSeePlayer(patrolDetectionRadius))
-    {
-        EnterChaseMode(EnemyState.Patrol);
-        return;
-    }
-
-    Vector3 current = transform.position;
-    Vector3 next = Vector3.MoveTowards(current, targetPosition, patrolSpeed * Time.deltaTime);
-    transform.position = next;
-
-    SmoothRotateTowards(targetPosition);
-
-    if (Vector3.Distance(transform.position, targetPosition) <= 0.05f)
-    {
-        transform.position = targetPosition;
-
-        if (patrolPauseCoroutine == null)
-            patrolPauseCoroutine = StartCoroutine(PatrolTurnRoutine());
-    }
-}
 
     private IEnumerator PatrolTurnRoutine()
     {
@@ -342,81 +428,81 @@ public class MopPatrol : MonoBehaviour
     }
 
     private void UpdateChase()
-{
-    if (ignorePlayerTimer > 0f)
     {
-        StartReturnToPattern();
-        return;
-    }
+        if (ignorePlayerTimer > 0f)
+        {
+            StartReturnToPattern();
+            return;
+        }
 
-    if (player == null)
-    {
-        StartReturnToPattern();
-        return;
-    }
+        if (player == null)
+        {
+            StartReturnToPattern();
+            return;
+        }
 
-    if (player.IsHidden)
-    {
-        StartReturnToPattern();
-        return;
-    }
+        if (player.IsHidden)
+        {
+            StartReturnToPattern();
+            return;
+        }
 
-    if (IsPlayerInsideClassroom())
-    {
-        StartReturnToPattern();
-        return;
-    }
+        if (IsPlayerInsideClassroom())
+        {
+            StartReturnToPattern();
+            return;
+        }
 
-    float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
+        float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
 
-    float chaseSpeed;
-    float activeAttackRadius;
+        float chaseSpeed;
+        float activeAttackRadius;
 
-    if (chaseStartedFromState == EnemyState.Lookout)
-    {
-        chaseSpeed = lookoutChaseSpeed;
-        activeAttackRadius = lookoutAttackRadius;
-    }
-    else
-    {
-        chaseSpeed = patrolChaseSpeed;
-        activeAttackRadius = patrolAttackRadius;
-    }
-
-    Vector3 chaseTarget = player.transform.position;
-    chaseTarget.y = transform.position.y;
-
-    transform.position = Vector3.MoveTowards(
-        transform.position,
-        chaseTarget,
-        chaseSpeed * Time.deltaTime
-    );
-
-    SmoothRotateTowards(chaseTarget);
-
-    if (distanceToPlayer <= activeAttackRadius && !isOnCooldown)
-    {
         if (chaseStartedFromState == EnemyState.Lookout)
         {
-            EnterAttackMode();
-            return;
+            chaseSpeed = lookoutChaseSpeed;
+            activeAttackRadius = lookoutAttackRadius;
         }
         else
         {
-            chargeTimer += Time.deltaTime;
+            chaseSpeed = patrolChaseSpeed;
+            activeAttackRadius = patrolAttackRadius;
+        }
 
-            if (chargeTimer >= chargeTime)
+        Vector3 chaseTarget = player.transform.position;
+        chaseTarget.y = transform.position.y;
+
+        transform.position = Vector3.MoveTowards(
+            transform.position,
+            chaseTarget,
+            chaseSpeed * Time.deltaTime
+        );
+
+        SmoothRotateTowards(chaseTarget);
+
+        if (distanceToPlayer <= activeAttackRadius && !isOnCooldown)
+        {
+            if (chaseStartedFromState == EnemyState.Lookout)
             {
                 EnterAttackMode();
                 return;
             }
+            else
+            {
+                chargeTimer += Time.deltaTime;
+
+                if (chargeTimer >= chargeTime)
+                {
+                    EnterAttackMode();
+                    return;
+                }
+            }
+        }
+        else
+        {
+            chargeTimer = 0f;
         }
     }
-    else
-    {
-        chargeTimer = 0f;
-    }
-}
 
     private void UpdateAttack()
     {

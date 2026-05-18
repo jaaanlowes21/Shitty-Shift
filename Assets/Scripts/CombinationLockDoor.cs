@@ -14,13 +14,17 @@ public class CombinationLockDoor : InteractableBase
     [Header("Scene To Load")]
     public string sceneName = "GameScene";
 
+    [Header("Exit Door (End Game)")]
+    [Tooltip("Check this if this is the final door that ends the game")]
+    public bool isExitDoor = false;
+
     [Header("UI")]
     public GameObject combinationPanel;
     public TextMeshProUGUI[] digitDisplays = new TextMeshProUGUI[4];
     public TextMeshProUGUI statusText;
 
     [Header("Fade Transition")]
-    public UnityEngine.UI.Image blackFadeImage;
+    public Image blackFadeImage;
     public float fadeDuration = 5f;
 
     private const int CombinationLength = 4;
@@ -146,6 +150,13 @@ public class CombinationLockDoor : InteractableBase
         {
             UpdateStatusText("Unlocked!");
             ClosePanel();
+            
+            // Stop timer if this is the exit door
+            if (isExitDoor)
+            {
+                StopGameTimer();
+            }
+            
             StartCoroutine(LoadSceneWithFade());
             return;
         }
@@ -153,6 +164,19 @@ public class CombinationLockDoor : InteractableBase
         UpdateStatusText("Wrong code. Try again.");
         ResetEnteredDigits();
         UpdateDigitDisplays();
+    }
+
+    private void StopGameTimer()
+    {
+        if (GameTimer.Instance != null)
+        {
+            GameTimer.Instance.StopTimer();
+            Debug.Log($"[CombinationLockDoor] Exit door opened! Timer stopped at: {GameTimer.Instance.GetFormattedTime()}");
+        }
+        else
+        {
+            Debug.LogWarning("[CombinationLockDoor] GameTimer Instance not found!");
+        }
     }
 
     public void InputNumber(string number)
@@ -260,19 +284,19 @@ public class CombinationLockDoor : InteractableBase
             statusText.text = text;
     }
 
-   private IEnumerator LoadSceneWithFade()
-{
-    // pause everything
-    Time.timeScale = 0f;
+    private IEnumerator LoadSceneWithFade()
+    {
+        // Pause everything
+        Time.timeScale = 0f;
 
-    if (blackFadeImage != null)
-        blackFadeImage.gameObject.SetActive(true);
+        if (blackFadeImage != null)
+            blackFadeImage.gameObject.SetActive(true);
 
-    // wait 3 seconds (IMPORTANT: unscaled time)
-    yield return new WaitForSecondsRealtime(3f);
+        // Wait 3 seconds (unscaled time)
+        yield return new WaitForSecondsRealtime(3f);
 
-    Time.timeScale = 1f;
+        Time.timeScale = 1f;
 
-    SceneManager.LoadScene(sceneName);
-}
+        SceneManager.LoadScene(sceneName);
+    }
 }

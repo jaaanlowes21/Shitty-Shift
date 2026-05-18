@@ -24,6 +24,7 @@ public class BossEnemyPatrol : MonoBehaviour
         Patrol,
         Chase,
         Attack,
+        Jumpscare,
         EnterRoom,
         SearchRoom,
         ExitRoom
@@ -56,12 +57,20 @@ public class BossEnemyPatrol : MonoBehaviour
     public float attackOffset = 0f;
     public float idleTime = 2f;
 
+    [Header("Jumpscare Settings")]
+    public float jumpscareDuration = 2f;
+    public float jumpscareShakeIntensity = 1f;
+
     [Header("Room Patrol")]
     public PatrolRoom[] patrolRooms;
     [Range(0f, 1f)] public float roomVisitChance = 0.4f;
     public float roomVisitCooldown = 30f;
     public float roomSearchTime = 3.5f;
     public float doorOpenDistance = 2f;
+
+    [Header("After Attack")]
+    public float ignorePlayerAfterAttackTime = 5f;
+    private float ignorePlayerTimer;
 
     private PlayerMovement player;
     private EnemyState currentState;
@@ -77,6 +86,7 @@ public class BossEnemyPatrol : MonoBehaviour
     private float attackTimer;
     private float cooldownTimer;
     private float idleTimer;
+    private float jumpscareTimer;
 
     private Vector3 savedPatternPosition;
     private Quaternion savedPatternRotation;
@@ -127,6 +137,9 @@ public class BossEnemyPatrol : MonoBehaviour
         if (isOnCooldown)
             UpdateCooldown();
 
+        if (ignorePlayerTimer > 0f)
+            ignorePlayerTimer -= Time.deltaTime;
+
         UpdateRoomCooldowns();
 
         switch (currentState)
@@ -142,6 +155,9 @@ public class BossEnemyPatrol : MonoBehaviour
                 break;
             case EnemyState.Attack:
                 UpdateAttack();
+                break;
+            case EnemyState.Jumpscare:
+                UpdateJumpscare();
                 break;
             case EnemyState.EnterRoom:
                 UpdateEnterRoom();
@@ -169,15 +185,32 @@ public class BossEnemyPatrol : MonoBehaviour
     private void EnterPatrolMode()
     {
         currentState = EnemyState.Patrol;
-        agent.speed = patrolSpeed;
-        agent.isStopped = false;
-        agent.destination = targetPosition;
+    
+        if (agent != null && !agent.enabled)
+        {
+            agent.enabled = true;
+            agent.Warp(transform.position);
+        }
+
+        if (agent != null)
+        {
+            agent.speed = patrolSpeed;
+            agent.isStopped = false;
+            agent.destination = targetPosition;
+        }
+        
         RotateTowardsTarget();
         Debug.Log($"[Boss] → Patrol | Heading to {targetPosition:F1}");
     }
 
     private void EnterChaseMode()
     {
+        if (ignorePlayerTimer > 0f)
+            return;
+
+        if (player == null || player.IsHidden)
+            return;
+
         currentState = EnemyState.Chase;
 
         savedPatternPosition = transform.position;
@@ -186,8 +219,18 @@ public class BossEnemyPatrol : MonoBehaviour
 
         currentRoom = null;
 
-        agent.speed = patrolChaseSpeed;
-        agent.isStopped = false;
+        if (agent != null)
+        {
+            if (!agent.enabled)
+            {
+                agent.enabled = true;
+                agent.Warp(transform.position);
+            }
+
+            agent.speed = patrolChaseSpeed;
+            agent.isStopped = false;
+            agent.destination = player.transform.position;
+        }
 
         chargeTimer = 0f;
         Debug.Log("[Boss] → Chase | Player detected");
@@ -208,9 +251,9 @@ public class BossEnemyPatrol : MonoBehaviour
         attackTimer = 0f;
         chargeTimer = 0f;
 
-        savedPatternPosition = transform.position;
-        savedPatternRotation = transform.rotation;
-        savedTargetPosition = targetPosition;
+        // Disable NavMeshAgent during attack for direct movement
+        if (agent != null)
+            agent.enabled = false;
 
         Vector3 forward = player.transform.forward;
         forward.y = 0f;
@@ -225,10 +268,28 @@ public class BossEnemyPatrol : MonoBehaviour
         RotateTowards(attackTargetPosition);
     }
 
+    private void PerformJumpscare()
+    {
+        if (player != null)
+            player.StartJumpscare(transform, jumpscareDuration, jumpscareShakeIntensity);
+
+        currentState = EnemyState.Jumpscare;
+        jumpscareTimer = jumpscareDuration;
+        isOnCooldown = true;
+        cooldownTimer = attackCooldown;
+        ignorePlayerTimer = ignorePlayerAfterAttackTime;
+    }
+
     private void EnterIdleMode()
     {
         currentState = EnemyState.Idle;
-        agent.isStopped = true;
+    
+        if (agent != null && agent.enabled)
+        {
+            agent.isStopped = true;
+            agent.ResetPath();
+        }
+    
         idleTimer = idleTime;
         Debug.Log("[Boss] → Idle");
     }
@@ -238,8 +299,12 @@ public class BossEnemyPatrol : MonoBehaviour
         currentState = EnemyState.EnterRoom;
         currentRoom = room;
         reachedDoor = false;
-        agent.isStopped = false;
-        agent.speed = patrolSpeed;
+        
+        if (agent != null)
+        {
+            agent.isStopped = false;
+            agent.speed = patrolSpeed;
+        }
 
         bool hasBothDoors = room.doorApproach != null && room.doorApproach2 != null;
         bool useSecond = hasBothDoors && Random.value < 0.5f;
@@ -252,14 +317,14 @@ public class BossEnemyPatrol : MonoBehaviour
         activeExitDoor = exitUseSecond ? room.door2 : room.door;
 
         Vector3 dest = activeDoorApproach != null ? activeDoorApproach.position : room.interiorPoint.position;
-        agent.destination = dest;
+        if (agent != null) agent.destination = dest;
         Debug.Log($"[Boss] → EnterRoom | Heading to {room.roomName} via {(useSecond ? "Door 2" : "Door 1")}");
     }
 
     private void EnterSearchMode()
     {
         currentState = EnemyState.SearchRoom;
-        agent.isStopped = true;
+        if (agent != null) agent.isStopped = true;
         searchTimer = roomSearchTime;
         Debug.Log($"[Boss] → SearchRoom | Searching {currentRoom?.roomName}");
     }
@@ -267,38 +332,74 @@ public class BossEnemyPatrol : MonoBehaviour
     private void EnterExitRoomMode()
     {
         currentState = EnemyState.ExitRoom;
-        agent.speed = patrolSpeed;
-        agent.isStopped = false;
+        if (agent != null)
+        {
+            agent.speed = patrolSpeed;
+            agent.isStopped = false;
+        }
         reachedExitDoor = false;
 
         Vector3 dest = activeExitApproach != null ? activeExitApproach.position : roamCenter;
-        agent.destination = dest;
+        if (agent != null) agent.destination = dest;
         Debug.Log($"[Boss] → ExitRoom | Leaving {currentRoom?.roomName}");
     }
 
     private void UpdateIdle()
-    {
-        idleTimer -= Time.deltaTime;
-        if (idleTimer <= 0 || (player != null && (CanDetectPlayer(patrolDetectionRadius) || CanDetectPlayer(closeDetectionRadius, true))))
+    {   
+        if (ignorePlayerTimer > 0f)
         {
-            if (player != null && (CanDetectPlayer(patrolDetectionRadius) || CanDetectPlayer(closeDetectionRadius, true)))
+            idleTimer -= Time.deltaTime;
+            if (idleTimer <= 0)
+                EnterPatrolMode();
+            return;
+        }
+
+        idleTimer -= Time.deltaTime;
+        if (idleTimer <= 0 || (player != null && CanDetectPlayer(patrolDetectionRadius)))
+        {
+            if (player != null && CanDetectPlayer(patrolDetectionRadius))
                 EnterChaseMode();
-            else
+            else    
                 EnterPatrolMode();
         }
     }
 
     private void UpdatePatrol()
     {
-        if (player != null && (CanDetectPlayer(patrolDetectionRadius) || CanDetectPlayer(closeDetectionRadius, true)))
+        if (ignorePlayerTimer > 0f)
         {
-            EnterChaseMode();
+            if (agent != null && agent.enabled)
+                SmoothRotateTowards(agent.destination);
+
+            if (agent != null && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
+            {
+                if (patrolRooms != null && patrolRooms.Length > 0 && Random.value < roomVisitChance)
+                {
+                    PatrolRoom room = PickWeightedRoom();
+                    if (room != null)
+                    {
+                        EnterRoomMode(room);
+                        return;
+                    }
+                }
+
+                SetValidRandomTarget();
+                if (agent != null) agent.destination = targetPosition;
+                RotateTowardsTarget();
+            }
             return;
         }
 
-        SmoothRotateTowards(agent.destination);
+        if (player != null && CanDetectPlayer(patrolDetectionRadius))
+        {
+            EnterChaseMode();
+            return;
+        }   
 
-        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
+        if (agent != null && agent.enabled)
+            SmoothRotateTowards(agent.destination);
+
+        if (agent != null && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
         {
             if (patrolRooms != null && patrolRooms.Length > 0 && Random.value < roomVisitChance)
             {
@@ -311,7 +412,7 @@ public class BossEnemyPatrol : MonoBehaviour
             }
 
             SetValidRandomTarget();
-            agent.destination = targetPosition;
+            if (agent != null) agent.destination = targetPosition;
             RotateTowardsTarget();
             Debug.Log($"[Boss] Patrol | New waypoint {targetPosition:F1}");
         }
@@ -319,7 +420,19 @@ public class BossEnemyPatrol : MonoBehaviour
 
     private void UpdateChase()
     {
+        if (ignorePlayerTimer > 0f)
+        {
+            EnterIdleMode();
+            return;
+        }
+
         if (player == null)
+        {
+            EnterIdleMode();
+            return;
+        }
+
+        if (player.IsHidden)
         {
             EnterIdleMode();
             return;
@@ -333,7 +446,7 @@ public class BossEnemyPatrol : MonoBehaviour
 
         Vector3 chaseTarget = player.transform.position;
         chaseTarget.y = transform.position.y;
-        agent.destination = chaseTarget;
+        if (agent != null) agent.destination = chaseTarget;
 
         SmoothRotateTowards(chaseTarget);
 
@@ -358,7 +471,14 @@ public class BossEnemyPatrol : MonoBehaviour
         if (player == null)
         {
             ResetAttackLikeState();
-            EnterIdleMode();
+            ReenableAgentAndIdle();
+            return;
+        }
+
+        if (player.IsHidden)
+        {
+            ResetAttackLikeState();
+            ReenableAgentAndIdle();
             return;
         }
 
@@ -379,13 +499,72 @@ public class BossEnemyPatrol : MonoBehaviour
             if (Vector3.Distance(transform.position, player.transform.position) <= damageRadius)
                 player.TakeDamage(player.maxHP * attackDamagePercent);
 
-            EnterIdleMode();
+            PerformJumpscare();
         }
+    }
+
+    private void UpdateJumpscare()
+    {
+        if (player == null || player.IsHidden)
+        {
+            StopJumpscareAndReturn();
+            return;
+        }
+
+        jumpscareTimer -= Time.deltaTime;
+
+        Vector3 targetFacePosition = player.transform.position + player.transform.forward * faceDistance;
+        targetFacePosition.y = transform.position.y;
+
+        Vector3 directionFromPlayerToEnemy = (transform.position - player.transform.position).normalized;
+        targetFacePosition += directionFromPlayerToEnemy * attackOffset;
+
+        Vector3 basePosition = Vector3.MoveTowards(
+            transform.position,
+            targetFacePosition,
+            attackSpeed * Time.deltaTime
+        );
+
+        transform.position = basePosition;
+        RotateTowards(player.transform.position);
+
+        if (jumpscareTimer <= 0f)
+        {
+            StopJumpscareAndReturn();
+        }
+    }
+
+    private void StopJumpscareAndReturn()
+    {
+        if (player != null)
+            player.StopJumpscare();
+
+        ReenableAgentAndIdle();
+    }
+
+    private void ReenableAgentAndIdle()
+    {
+        if (agent != null)
+        {
+            if (!agent.enabled)
+            {
+                agent.enabled = true;
+                agent.Warp(transform.position);
+            }
+
+            agent.isStopped = true;
+            agent.ResetPath();
+        }
+
+        currentState = EnemyState.Idle;
+        idleTimer = idleTime;
+
+        Debug.Log($"[Boss] → ReturnToPatrol | Ignoring player for {ignorePlayerAfterAttackTime}s");
     }
 
     private void UpdateEnterRoom()
     {
-        if (player != null && (CanDetectPlayer(patrolDetectionRadius) || CanDetectPlayer(closeDetectionRadius, true)))
+        if (ignorePlayerTimer <= 0f && player != null && CanDetectPlayer(patrolDetectionRadius))
         {
             EnterChaseMode();
             return;
@@ -396,17 +575,17 @@ public class BossEnemyPatrol : MonoBehaviour
             Vector3 dest = activeDoorApproach != null ? activeDoorApproach.position : currentRoom.interiorPoint.position;
             SmoothRotateTowards(dest);
 
-            if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
+            if (agent != null && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
             {
                 reachedDoor = true;
 
                 if (activeDoor != null && !activeDoor.IsOpen)
                 {
                     activeDoor.ForceOpen();
-                    agent.isStopped = true;
+                    if (agent != null) agent.isStopped = true;
                 }
 
-                agent.destination = currentRoom.interiorPoint.position;
+                if (agent != null) agent.destination = currentRoom.interiorPoint.position;
                 Debug.Log($"[Boss] EnterRoom | Door reached, moving inside {currentRoom.roomName}");
             }
         }
@@ -414,21 +593,21 @@ public class BossEnemyPatrol : MonoBehaviour
         {
             if (activeDoor != null && activeDoor.IsMoving)
             {
-                agent.isStopped = true;
+                if (agent != null) agent.isStopped = true;
                 return;
             }
 
-            agent.isStopped = false;
+            if (agent != null) agent.isStopped = false;
             SmoothRotateTowards(currentRoom.interiorPoint.position);
 
-            if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
+            if (agent != null && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
                 EnterSearchMode();
         }
     }
 
     private void UpdateSearchRoom()
     {
-        if (player != null && (CanDetectPlayer(patrolDetectionRadius) || CanDetectPlayer(closeDetectionRadius, true)))
+        if (ignorePlayerTimer <= 0f && player != null && CanDetectPlayer(patrolDetectionRadius))
         {
             EnterChaseMode();
             return;
@@ -441,7 +620,7 @@ public class BossEnemyPatrol : MonoBehaviour
 
     private void UpdateExitRoom()
     {
-        if (player != null && (CanDetectPlayer(patrolDetectionRadius) || CanDetectPlayer(closeDetectionRadius, true)))
+        if (ignorePlayerTimer <= 0f && player != null && CanDetectPlayer(patrolDetectionRadius))
         {
             EnterChaseMode();
             return;
@@ -449,7 +628,7 @@ public class BossEnemyPatrol : MonoBehaviour
 
         if (!reachedExitDoor)
         {
-            SmoothRotateTowards(agent.destination);
+            if (agent != null) SmoothRotateTowards(agent.destination);
 
             if (activeExitDoor != null && !activeExitDoor.IsOpen)
             {
@@ -458,7 +637,7 @@ public class BossEnemyPatrol : MonoBehaviour
                 {
                     reachedExitDoor = true;
                     activeExitDoor.ForceOpen();
-                    agent.isStopped = true;
+                    if (agent != null) agent.isStopped = true;
                 }
             }
             else
@@ -470,14 +649,14 @@ public class BossEnemyPatrol : MonoBehaviour
         {
             if (activeExitDoor != null && activeExitDoor.IsMoving)
             {
-                agent.isStopped = true;
+                if (agent != null) agent.isStopped = true;
                 return;
             }
 
-            agent.isStopped = false;
-            SmoothRotateTowards(agent.destination);
+            if (agent != null) agent.isStopped = false;
+            if (agent != null) SmoothRotateTowards(agent.destination);
 
-            if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
+            if (agent != null && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
             {
                 if (currentRoom != null)
                     currentRoom.visitCooldownRemaining = roomVisitCooldown;
@@ -526,6 +705,9 @@ public class BossEnemyPatrol : MonoBehaviour
     private bool CanDetectPlayer(float radius, bool ignoreHiding = false)
     {
         if (player == null)
+            return false;
+
+        if (ignorePlayerTimer > 0f)
             return false;
 
         if (!ignoreHiding && player.IsHidden)
